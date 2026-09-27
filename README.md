@@ -30,8 +30,8 @@ Tidak butuh backend, tidak butuh konfigurasi. Cukup buka di browser desktop.
 |---|---|
 | Gerak | `WASD` atau panah |
 | Pukul (combo 3 langkah) | `J` atau klik kiri |
-| Skill Purge — AoE melingkar | `K` atau klik kanan |
-| Skill Shock — garis menembus + stun | `L` atau `Q` |
+| Skill 1 (berbeda tiap kelas) | `K` atau klik kanan |
+| Skill 2 (berbeda tiap kelas) | `L` atau `Q` |
 | Dash (kebal selama bergerak) | `Spasi` atau `Shift` |
 | Pilih upgrade antar wave | `1` / `2` / `3` |
 | Jeda | `Esc` |
@@ -44,8 +44,13 @@ Tidak butuh backend, tidak butuh konfigurasi. Cukup buka di browser desktop.
 - **10 wave** dengan kurva kesulitan menanjak, plus **2 boss** di wave 5 dan 10
 - **7 tipe musuh** dengan 3 perilaku berbeda: mengejar, zigzag, dan menerjang
 - **Combo 3 pukulan** dengan hitstop, knockback, dan screen shake
-- **2 skill berpendingin**: Purge (AoE melingkar, 25 damage) dan Shock (garis menembus,
-  18 damage + membuat musuh terpaku 0,8 detik)
+- **3 kelas karakter** dengan cara main berbeda, dipilih sebelum mulai:
+  Warrior (tebal, melee, dorongan terkuat), Archer (panah jarak jauh, tergesit),
+  Mage (rapuh, tapi skill dua kali lebih sering dan jauh lebih keras)
+- **6 skill — dua milik tiap kelas**, tidak ada yang dipakai bersama:
+  Cleave/Warcry, Volley/Pin Shot, Purge/Shock
+- **Cerita bergaya RPG** dengan kotak dialog berefek ketik di pembuka,
+  kedua wave boss, dan penutup
 - **Dash** 160 px dengan kebal penuh dan bayangan sisa, pendinginan 1,2 detik
 - **7 upgrade**, dipilih 1 dari 3 setiap kali wave bersih
 - Boss punya 4 pola serangan (tembakan melingkar, beam bertelegraf, memanggil musuh,
@@ -58,7 +63,7 @@ SFX dan musik disintesis lewat Web Audio API dari oscillator dan noise
 (`src/systems/Audio.ts`). Browser baru mengizinkan bunyi setelah interaksi pengguna,
 jadi audio terbuka saat menekan SPASI di layar judul.
 
-**Total aset ~140 KB.** Tujuh spritesheet, satu tileset, delapan FX (di-pack dari frame
+**Total aset ~150 KB.** Delapan spritesheet, satu tileset, sepuluh FX (di-pack dari frame
 per-PNG oleh `tools/pack_assets.py`), plus font pixel 29 KB yang di-host sendiri — bukan
 dari CDN, jadi game tetap jalan offline.
 
@@ -69,11 +74,12 @@ mengubah data, bukan kode.
 
 ```
 src/
-  data/       angka tuning: combat, skill, musuh, boss, wave, upgrade, tile
+  data/       angka tuning: kelas, skill, combat, musuh, boss, wave, upgrade, tile
+              plus naskah cerita (story.ts)
   entities/   Player, Enemy, Boss
-  scenes/     BootScene (preload), TitleScene, GameScene
+  scenes/     BootScene (preload), TitleScene, CharacterSelectScene, GameScene
   systems/    ArenaBuilder, CombatSystem, WaveManager, BossAttacks,
-              Audio, Particles, Ui, UpgradePanel
+              Audio, Particles, Ui, UpgradePanel, DialogueBox
 public/assets/  sprite, tileset, FX  (lihat CREDITS.md)
 public/fonts/   Press Start 2P (OFL) + teks lisensinya
 tools/          pack_assets.py — generator spritesheet
@@ -121,7 +127,8 @@ Semua milestone selesai.
 | M4 | 10 wave, upgrade, skor, game over | ✅ |
 | M5 | 2 boss + pola serangan + fase | ✅ |
 | M6 | Audio, partikel, layar judul, balancing | ✅ |
-| + | Skill Purge & Shock, dash, font pixel | ✅ |
+| + | Skill, dash, font pixel | ✅ |
+| + | Pilih kelas, skill per kelas, cerita | ✅ |
 
 Seluruh isi SPEC §4-§5.2 sudah terimplementasi.
 

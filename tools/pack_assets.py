@@ -38,6 +38,9 @@ JOBS = [
     ("fx-enemy-death", "fx", os.path.join(GROTTO, "enemy-death", "*.png")),
     ("fx-hit", "fx", os.path.join(FX, "Hit", "Sprites", "*.png")),
     ("fx-electro-shock", "fx", os.path.join(GROTTO, "electro-shock", "*.png")),
+    ("fx-energy-smack", "fx", os.path.join(GROTTO, "energy-smack", "*.png")),
+    ("fx-energy-field", "fx", os.path.join(GROTTO, "energy-field", "*.png")),
+    ("player-arrow", "sprites", os.path.join(SRC, "Gothicvania", "Misc", "Dagger", "*.png")),
     (
         "enemy-beetle",
         "sprites",

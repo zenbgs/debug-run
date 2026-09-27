@@ -3,7 +3,9 @@ import { isBossType, SPAWNABLE_BY_ID } from '../data/bosses';
 import { CAMERA, FONT_FAMILY, TILE } from '../data/config';
 import type { EnemyType } from '../data/enemies';
 import { EMPTY } from '../data/tiles';
-import { SHOCK_FX_STEPS } from '../data/skills';
+import { SHEETS } from '../data/frames';
+import { SHOCK_FX_STEPS, type VolleyConfig } from '../data/skills';
+import { STORY_BOSS, STORY_VICTORY } from '../data/story';
 import type { Upgrade } from '../data/upgrades';
 import { WAVES, WAVE_TIMING, waveClearBonus, type Wave } from '../data/waves';
 import { Boss, type BossContext } from '../entities/Boss';
@@ -19,6 +21,7 @@ import { buildArena } from '../systems/ArenaBuilder';
 import { audio } from '../systems/Audio';
 import { BossAttacks } from '../systems/BossAttacks';
 import { CombatSystem } from '../systems/CombatSystem';
+import { DialogueBox } from '../systems/DialogueBox';
 import { createFxAnimations, playFx } from '../systems/Fx';
 import { createParticleTexture } from '../systems/Particles';
 import { addText, createPanel, showWaveBanner } from '../systems/Ui';
@@ -43,7 +46,11 @@ const FX_ANGLE: Record<Facing, number> = {
   down: 90,
 };
 
-type SceneState = 'playing' | 'upgrade' | 'paused' | 'gameover' | 'victory';
+/** Radius tumbukan panah, dipakai deteksi manual di `updateArrows`. */
+const ARROW_RADIUS = 5;
+const ARROW_KNOCKBACK = 150;
+
+type SceneState = 'playing' | 'upgrade' | 'paused' | 'dialog' | 'gameover' | 'victory';
 
 export class GameScene extends Phaser.Scene {
   private player!: Player;
@@ -69,12 +76,18 @@ export class GameScene extends Phaser.Scene {
   /** Berapa kali tiap upgrade sudah diambil, untuk menghormati batas stack. */
   private takenUpgrades = new Map<string, number>();
   private upgradeDelayTimer = 0;
+  private classId?: string;
+  private arrows!: Phaser.Physics.Arcade.Group;
+  private dialogue!: DialogueBox;
+  /** Wave boss yang ceritanya sudah diputar, supaya tidak berulang. */
+  private readonly bossStoryShown = new Set<number>();
 
   constructor() {
     super('Game');
   }
 
-  create(): void {
+  create(data?: { classId?: string }): void {
+    if (data?.classId) this.classId = data.classId;
     this.state = 'playing';
     this.kills = 0;
     this.score = 0;
@@ -82,6 +95,7 @@ export class GameScene extends Phaser.Scene {
     this.takenUpgrades = new Map();
     this.upgradeDelayTimer = 0;
     this.debugGraphics = undefined;
+    this.bossStoryShown.clear();
     this.activeBoss = undefined;
     this.bossBar = undefined;
     this.bossLabel = undefined;
@@ -102,7 +116,7 @@ export class GameScene extends Phaser.Scene {
     this.combat = new CombatSystem(this);
     this.upgradePanel = new UpgradePanel(this);
 
-    this.player = new Player(this, arena.spawn.x, arena.spawn.y);
+    this.player = new Player(this, arena.spawn.x, arena.spawn.y, this.classId);
     this.player.setDepth(DEPTH.PLAYER);
     this.physics.add.collider(this.player, this.obstacles);
     this.player.on(PLAYER_ATTACK_EVENT, this.onPlayerAttack, this);
@@ -112,6 +126,14 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.enemyGroup, this.obstacles);
     this.physics.add.collider(this.enemyGroup, this.enemyGroup);
     this.physics.add.overlap(this.player, this.enemyGroup, this.onPlayerTouchedEnemy, undefined, this);
+
+    // Panah pemain (hanya dipakai kelas jarak jauh).
+    this.arrows = this.physics.add.group();
+    this.physics.add.collider(this.arrows, this.obstacles, (arrow) => {
+      (arrow as Phaser.GameObjects.GameObject).destroy();
+    });
+
+    this.dialogue = new DialogueBox(this, this.player.playerClass.texture, SHEETS.BOSS_CORE.key);
 
     this.bossAttacks = new BossAttacks(this);
     // Proyektil boss hancur kena tembok, dan menyakiti pemain kalau kena.
@@ -243,6 +265,18 @@ export class GameScene extends Phaser.Scene {
       wave.isBossWave === true
     );
     audio.play(wave.isBossWave ? 'bossSpawn' : 'waveStart');
+
+    // Cerita boss diputar sekali di awal wave-nya, sebelum musuh keluar.
+    const beat = STORY_BOSS[wave.number];
+    if (wave.isBossWave && beat && !this.bossStoryShown.has(wave.number)) {
+      this.bossStoryShown.add(wave.number);
+      this.state = 'dialog';
+      this.physics.world.pause();
+      this.dialogue.play(beat, () => {
+        this.state = 'playing';
+        this.physics.world.resume();
+      });
+    }
   }
 
   private onWaveCleared(wave: Wave): void {
@@ -279,7 +313,11 @@ export class GameScene extends Phaser.Scene {
     const dirX = facing === 'right' ? 1 : facing === 'left' ? -1 : 0;
     const dirY = facing === 'down' ? 1 : facing === 'up' ? -1 : 0;
 
-    if (skillId === 'shock' && step.shape.type === 'rect') {
+    const volley = payload.skill?.kind === 'volley';
+    const melee = !volley && (!payload.ranged || skillId !== undefined);
+    if (!melee) {
+      // Kelas jarak jauh tidak punya ayunan; FX-nya adalah panah itu sendiri.
+    } else if (skillId === 'shock' && step.shape.type === 'rect') {
       // Sprite petir menyembur vertikal dari satu titik, bukan sinar mendatar.
       // Jadi FX-nya ditaruh beberapa kali di sepanjang garis serangan.
       const span = step.shape.width;
@@ -299,9 +337,27 @@ export class GameScene extends Phaser.Scene {
 
     if (skillId) audio.play('upgrade');
 
+    // Skill bertipe `volley` menembakkan panah, bukan mengayun hitbox.
+    if (payload.skill && payload.skill.kind === 'volley') {
+      this.fireVolley(payload, payload.skill.volley);
+      return;
+    }
+
+    // Serangan dasar kelas jarak jauh juga menembak panah.
+    if (payload.ranged && !skillId) {
+      this.fireArrows(payload);
+      return;
+    }
+
     const targets = this.aliveEnemies;
     const result = this.combat.resolveAttack(step, { x, y, facing }, targets, {
-      damageMultiplier: this.player.stats.damageMultiplier,
+      // Pengali kelas dipilih menurut jenis serangan: skill memakai
+      // `skillDamageMultiplier`, pukulan biasa memakai `damageMultiplier`.
+      damageMultiplier:
+        this.player.stats.damageMultiplier *
+        (skillId
+          ? this.player.playerClass.skillDamageMultiplier
+          : this.player.playerClass.damageMultiplier),
       rangeMultiplier: this.player.stats.rangeMultiplier,
     });
 
@@ -315,6 +371,153 @@ export class GameScene extends Phaser.Scene {
 
     if (this.player.stats.lifesteal > 0 && result.damageDealt > 0) {
       this.player.heal(result.damageDealt * this.player.stats.lifesteal);
+    }
+  }
+
+  /** Sudut dasar tembakan menurut arah hadap. */
+  private static facingAngle(facing: Facing): number {
+    return facing === 'right'
+      ? 0
+      : facing === 'left'
+        ? Math.PI
+        : facing === 'down'
+          ? Math.PI / 2
+          : -Math.PI / 2;
+  }
+
+  /** Skill `volley`: menembakkan sejumlah panah sekaligus. */
+  private fireVolley(payload: PlayerAttackPayload, config: VolleyConfig): void {
+    const dasar = GameScene.facingAngle(payload.facing);
+    const damage = config.damage * this.player.stats.damageMultiplier;
+
+    for (let i = 0; i < config.count; i++) {
+      const offset = config.count === 1 ? 0 : (i / (config.count - 1) - 0.5) * config.spread;
+      this.spawnArrow(payload.x, payload.y, dasar + offset, {
+        speed: config.speed,
+        range: config.range,
+        damage,
+        pierce: config.pierce,
+        stunMs: config.stunMs,
+      });
+    }
+    audio.play('upgrade');
+  }
+
+  /** Membuat satu panah. Dipakai serangan dasar Archer maupun skill volley. */
+  private spawnArrow(
+    x: number,
+    y: number,
+    sudut: number,
+    opsi: { speed: number; range: number; damage: number; pierce: boolean; stunMs?: number }
+  ): void {
+    const arrow = this.arrows.create(x, y, SHEETS.PLAYER_ARROW.key) as Phaser.Physics.Arcade.Sprite;
+    arrow.setDepth(DEPTH.PLAYER - 1);
+    arrow.setRotation(sudut);
+    arrow.setData('damage', opsi.damage);
+    arrow.setData('pierce', opsi.pierce);
+    arrow.setData('stunMs', opsi.stunMs ?? 0);
+    arrow.setData('hitIds', new Set<Enemy>());
+    arrow.setData('expiresAt', this.time.now + (opsi.range / opsi.speed) * 1000);
+
+    const body = arrow.body as Phaser.Physics.Arcade.Body;
+    // Offset WAJIB diset eksplisit. `setSize()` seharusnya memusatkan body, tapi
+    // pada sprite panah ini tidak terjadi: body tertinggal di pojok kiri-atas
+    // frame 32x32, jauh dari gambar panahnya, sehingga panah menembus musuh
+    // tanpa pernah mengenai. Terukur: sprite di (433,303), body di (417,287).
+    const ARROW_BODY_W = 10;
+    const ARROW_BODY_H = 6;
+    body.setSize(ARROW_BODY_W, ARROW_BODY_H);
+    body.setOffset(
+      (SHEETS.PLAYER_ARROW.frameWidth - ARROW_BODY_W) / 2,
+      (SHEETS.PLAYER_ARROW.frameHeight - ARROW_BODY_H) / 2
+    );
+    body.setAllowGravity(false);
+    body.setVelocity(Math.cos(sudut) * opsi.speed, Math.sin(sudut) * opsi.speed);
+  }
+
+  /** Serangan dasar kelas jarak jauh. */
+  private fireArrows(payload: PlayerAttackPayload): void {
+    const { step, x, y, facing } = payload;
+    const config = this.player.playerClass;
+    const speed = config.projectileSpeed ?? 280;
+    const jumlah = payload.projectileCount ?? 1;
+    const dasar = GameScene.facingAngle(facing);
+    const sebar = 0.22;
+    const damage =
+      step.damage * this.player.stats.damageMultiplier * config.damageMultiplier;
+
+    for (let i = 0; i < jumlah; i++) {
+      const sudut = dasar + (i - (jumlah - 1) / 2) * sebar;
+      this.spawnArrow(x, y, sudut, {
+        speed,
+        range: config.projectileRange ?? 180,
+        damage,
+        pierce: false,
+      });
+    }
+    audio.play('swing');
+  }
+
+
+  /**
+   * Gerak, kedaluwarsa, dan tumbukan panah — semuanya dihitung manual di sini.
+   *
+   * Deteksi kena TIDAK memakai `physics.add.overlap`. Pendekatan itu sempat dipakai
+   * dan gagal secara diam-diam: panahnya hancur tapi damage tidak pernah masuk,
+   * dan penyebabnya sulit dipastikan. Perhitungan jarak manual seperti beam boss
+   * jauh lebih mudah dibuktikan benar, dan biayanya sepele untuk belasan panah.
+   */
+  private updateArrows(): void {
+    const now = this.time.now;
+    const musuh = this.aliveEnemies;
+
+    for (const child of this.arrows.getChildren()) {
+      const arrow = child as Phaser.Physics.Arcade.Sprite;
+      if (!arrow.active) continue;
+
+      if (now >= (arrow.getData('expiresAt') as number)) {
+        arrow.destroy();
+        continue;
+      }
+
+      for (const target of musuh) {
+        const body = target.body as Phaser.Physics.Arcade.Body | null;
+        if (!body) continue;
+
+        // Kotak musuh dilebarkan sedikit oleh radius panah.
+        const jangkauanX = body.width / 2 + ARROW_RADIUS;
+        const jangkauanY = body.height / 2 + ARROW_RADIUS;
+        if (
+          Math.abs(arrow.x - (body.x + body.width / 2)) > jangkauanX ||
+          Math.abs(arrow.y - (body.y + body.height / 2)) > jangkauanY
+        ) {
+          continue;
+        }
+
+        // Panah menembus hanya boleh mengenai tiap musuh sekali.
+        const sudahKena = arrow.getData('hitIds') as Set<Enemy>;
+        if (sudahKena.has(target)) continue;
+        sudahKena.add(target);
+
+        const damage = (arrow.getData('damage') as number) ?? 0;
+        const stunMs = (arrow.getData('stunMs') as number) ?? 0;
+        const away = new Phaser.Math.Vector2(target.x - arrow.x, target.y - arrow.y);
+        if (away.lengthSq() < 1) away.set(1, 0);
+        away.normalize().scale(ARROW_KNOCKBACK);
+
+        const killed = target.takeDamage(damage, away.x, away.y);
+        if (killed) {
+          this.kills++;
+          this.score += target.config.score;
+        } else if (stunMs > 0) {
+          target.applyStun(stunMs);
+        }
+
+        if (!(arrow.getData('pierce') as boolean)) {
+          arrow.destroy();
+          break;
+        }
+      }
     }
   }
 
@@ -373,7 +576,10 @@ export class GameScene extends Phaser.Scene {
     this.upgradePanel.close();
     this.freezeEverything();
     audio.play('victory');
-    this.showEndPanel('SEMUA WAVE SELESAI', '#8fd35d');
+    // Cerita penutup dulu, baru layar skor.
+    this.dialogue.play(STORY_VICTORY, () => {
+      this.showEndPanel('SEMUA WAVE SELESAI', '#8fd35d');
+    });
   }
 
   private showEndPanel(title: string, color: string): void {
@@ -526,10 +732,10 @@ export class GameScene extends Phaser.Scene {
     const sisa = aliveCount + this.waves.remainingInQueue;
     const skills = this.player
       .getSkillStatus()
-      .map(({ skill, remainingMs }) =>
+      .map(({ skill, hotkey, remainingMs }) =>
         remainingMs > 0
-          ? `[${skill.hotkey}]${(remainingMs / 1000).toFixed(1)}s`
-          : `[${skill.hotkey}]${skill.name}`
+          ? `[${hotkey}]${(remainingMs / 1000).toFixed(1)}s`
+          : `[${hotkey}]${skill.name}`
       )
       .join('  ');
 
@@ -545,6 +751,10 @@ ${skills}  ${dash}`
   }
 
   override update(_time: number, delta: number): void {
+    if (this.state === 'dialog') {
+      this.dialogue.update(delta);
+      return;
+    }
     if (this.state === 'paused') return;
 
     this.combat.update(delta);
@@ -562,6 +772,7 @@ ${skills}  ${dash}`
       for (const enemy of alive) enemy.tick(target, now, deltaSeconds);
 
       this.bossAttacks.update(delta, this.player);
+      this.updateArrows();
       this.waves.update(delta, alive.length, this.cameras.main);
 
       // Panel upgrade dibuka setelah jeda pendek pasca wave bersih.
@@ -570,6 +781,8 @@ ${skills}  ${dash}`
         if (this.upgradeDelayTimer <= 0) this.openUpgradePanel();
       }
     }
+
+    if (this.dialogue.isOpen) this.dialogue.update(delta);
 
     this.drawAttackHitbox();
     this.updateBossBar();

@@ -27,9 +27,9 @@ penulisnya. Dukung karyanya di <https://ansimuz.itch.io/>.
 
 | Berkas di project | Asal di Legacy Collection | Dipakai untuk |
 |---|---|---|
-| `public/assets/sprites/player-guy.png` | `Assets/TinyRPG/Characters/Top-Down-16-bit-fantasy/Characters pack 1/Guy/aseprite.png` | Sprite pemain (aktif) |
-| `public/assets/sprites/player-blondkid.png` | `.../Characters pack 1/Blond_kid/aseprite.png` | Sprite pemain (cadangan) |
-| `public/assets/sprites/player-pirategirl.png` | `.../Characters pack 1/PirateGirl/spritesheet.png` | Sprite pemain (cadangan) |
+| `public/assets/sprites/player-guy.png` | `Assets/TinyRPG/Characters/Top-Down-16-bit-fantasy/Characters pack 1/Guy/aseprite.png` | Sprite kelas Warrior |
+| `public/assets/sprites/player-blondkid.png` | `.../Characters pack 1/Blond_kid/aseprite.png` | Sprite kelas Mage |
+| `public/assets/sprites/player-pirategirl.png` | `.../Characters pack 1/PirateGirl/spritesheet.png` | Sprite kelas Archer |
 | `public/assets/tilesets/overworld.png` | `Assets/TinyRPG/Environments/Overworld/Overworld 16x16/Tileset/overworld.png` | Tileset arena |
 | `public/assets/sprites/enemy-beetle.png` | `Assets/Warped/Characters/top-down-shooter-enemies/sprites/enemy-01/` | Musuh kumbang (aktif) |
 | `public/assets/sprites/enemy-crawler.png` | `.../top-down-shooter-enemies/sprites/enemy-02/` | Musuh kumbang mesin |
@@ -40,6 +40,9 @@ penulisnya. Dukung karyanya di <https://ansimuz.itch.io/>.
 | `public/assets/fx/fx-enemy-death.png` | `.../Grotto-escape-2-FX/sprites/enemy-death/` | FX musuh mati |
 | `public/assets/fx/fx-hit.png` | `Assets/Explosions and Magic/Hit/Sprites/` | FX kena pukul |
 | `public/assets/fx/fx-electro-shock.png` | `.../Grotto-escape-2-FX/sprites/electro-shock/` | FX skill Shock |
+| `public/assets/fx/fx-energy-field.png` | `.../Grotto-escape-2-FX/sprites/energy-field/` | FX skill Warcry |
+| `public/assets/fx/fx-energy-smack.png` | `.../Grotto-escape-2-FX/sprites/energy-smack/` | FX cadangan |
+| `public/assets/sprites/player-arrow.png` | `Assets/Gothicvania/Misc/Dagger/` | Panah Archer |
 | `public/assets/sprites/boss-core.png` | `Assets/Warped/Characters/top-down-boss/PNG/sprites/boss/` | Sprite kedua boss |
 | `public/assets/fx/boss-bolt.png` | `.../top-down-boss/PNG/sprites/bolt/` | Proyektil boss |
 | `public/assets/fx/boss-rays.png` | `.../top-down-boss/PNG/sprites/rays/` | Beam boss |

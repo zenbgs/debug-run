@@ -20,6 +20,27 @@ export const SHEETS = {
     frameHeight: 32,
     frames: 12,
   },
+  PLAYER_BLONDKID: {
+    key: 'player-blondkid',
+    path: 'assets/sprites/player-blondkid.png',
+    frameWidth: 32,
+    frameHeight: 32,
+    frames: 12,
+  },
+  PLAYER_PIRATEGIRL: {
+    key: 'player-pirategirl',
+    path: 'assets/sprites/player-pirategirl.png',
+    frameWidth: 32,
+    frameHeight: 32,
+    frames: 12,
+  },
+  PLAYER_ARROW: {
+    key: 'player-arrow',
+    path: 'assets/sprites/player-arrow.png',
+    frameWidth: 32,
+    frameHeight: 32,
+    frames: 1,
+  },
   ENEMY_BEETLE: {
     key: 'enemy-beetle',
     path: 'assets/sprites/enemy-beetle.png',
@@ -68,6 +89,20 @@ export const SHEETS = {
     frameWidth: 128,
     frameHeight: 96,
     frames: 9,
+  },
+  FX_ENERGY_SMACK: {
+    key: 'fx-energy-smack',
+    path: 'assets/fx/fx-energy-smack.png',
+    frameWidth: 128,
+    frameHeight: 96,
+    frames: 8,
+  },
+  FX_ENERGY_FIELD: {
+    key: 'fx-energy-field',
+    path: 'assets/fx/fx-energy-field.png',
+    frameWidth: 51,
+    frameHeight: 47,
+    frames: 8,
   },
   FX_SLASH_HORIZONTAL: {
     key: 'fx-slash-horizontal',

@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { FONT_FAMILY, VIEW } from "./data/config";
 import { BootScene } from "./scenes/BootScene";
+import { CharacterSelectScene } from "./scenes/CharacterSelectScene";
 import { GameScene } from "./scenes/GameScene";
 import { TitleScene } from "./scenes/TitleScene";
 
@@ -40,7 +41,7 @@ function buatGame(): Phaser.Game {
         debug: false,
       },
     },
-    scene: [BootScene, TitleScene, GameScene],
+    scene: [BootScene, TitleScene, CharacterSelectScene, GameScene],
   });
 }
 

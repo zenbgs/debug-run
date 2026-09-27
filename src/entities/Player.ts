@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 import { COMBAT, COMBO, type AttackStep } from '../data/combat';
+import { getClass, PLAYER_CLASSES, type PlayerClass } from '../data/classes';
 import { DASH, PLAYER } from '../data/config';
 import { SHEETS } from '../data/frames';
-import { SKILLS, type Skill, type SkillId } from '../data/skills';
+import { getSkill, SKILL_HOTKEYS, type Skill, type SkillId } from '../data/skills';
 import { createBaseStats, type PlayerStats, type Upgrade } from '../data/upgrades';
 import { audio } from '../systems/Audio';
 
@@ -23,6 +24,12 @@ export type PlayerAttackPayload = {
   facing: Facing;
   /** Terisi kalau serangan ini berasal dari skill, bukan combo biasa. */
   skillId?: SkillId;
+  /** Skill lengkapnya, supaya GameScene tahu jenis eksekusinya. */
+  skill?: Skill;
+  /** Kelas jarak jauh menembak proyektil, bukan mengayun hitbox. */
+  ranged?: boolean;
+  /** Berapa proyektil yang ditembakkan (finisher menembak menyebar). */
+  projectileCount?: number;
 };
 
 /**
@@ -33,11 +40,10 @@ export type PlayerAttackPayload = {
  *   baris 2 (frame 8-11) = jalan ke atas
  * Arah kiri didapat dari flipX pada baris samping — tidak ada baris terpisah.
  */
-const ANIM = {
-  WALK_DOWN: 'player-walk-down',
-  WALK_SIDE: 'player-walk-side',
-  WALK_UP: 'player-walk-up',
-} as const;
+/** Nama animasi diberi awalan texture supaya tiap kelas punya set sendiri. */
+function animKey(texture: string, arah: 'down' | 'side' | 'up'): string {
+  return `${texture}-walk-${arah}`;
+}
 
 const IDLE_FRAME: Record<Facing, number> = {
   down: 0,
@@ -67,7 +73,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private invulnerableUntil = 0;
   private hurtKnockbackUntil = 0;
 
-  /** Stat yang dimodifikasi upgrade antar wave. */
+  /** Stat yang dimodifikasi upgrade antar wave. Nilai awalnya dari kelas. */
   readonly stats: PlayerStats = createBaseStats(PLAYER.MAX_HP);
 
   private readonly keys: {
@@ -81,8 +87,24 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     dash: Phaser.Input.Keyboard.Key[];
   };
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
-    super(scene, x, y, PLAYER_TEXTURE, IDLE_FRAME.down);
+  readonly playerClass: PlayerClass;
+
+  constructor(scene: Phaser.Scene, x: number, y: number, classId?: string) {
+    const config = getClass(classId);
+    super(scene, x, y, config.texture, IDLE_FRAME.down);
+    this.playerClass = config;
+
+    // Stat awal diturunkan dari kelas; upgrade nanti menumpuk di atasnya.
+    //
+    // `damageMultiplier` SENGAJA tidak diisi dari kelas: ia menampung bonus upgrade
+    // saja. Pengali kelas diterapkan terpisah — basic memakai `damageMultiplier`
+    // kelas, skill memakai `skillDamageMultiplier`. Kalau keduanya dikalikan,
+    // pukulan lemah Mage ikut menyeret turun skill-nya, dan Purge-nya jadi setara
+    // Warrior (terukur 30,9 vs 30) — kebalikan dari yang dirancang.
+    this.stats.maxHp = config.maxHp;
+    this.stats.speedMultiplier = config.speedMultiplier;
+    this.stats.recoveryMultiplier = config.recoveryMultiplier;
+    this.hp = config.maxHp;
 
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -119,21 +141,24 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
+  /** Membuat animasi jalan untuk SEMUA texture kelas, bukan hanya yang dipakai. */
   static createAnimations(scene: Phaser.Scene): void {
-    if (scene.anims.exists(ANIM.WALK_DOWN)) return;
+    for (const config of PLAYER_CLASSES) {
+      if (scene.anims.exists(animKey(config.texture, 'down'))) continue;
 
-    const define = (key: string, start: number, end: number) => {
-      scene.anims.create({
-        key,
-        frames: scene.anims.generateFrameNumbers(PLAYER_TEXTURE, { start, end }),
-        frameRate: PLAYER.WALK_FRAME_RATE,
-        repeat: -1,
-      });
-    };
+      const define = (arah: 'down' | 'side' | 'up', start: number, end: number) => {
+        scene.anims.create({
+          key: animKey(config.texture, arah),
+          frames: scene.anims.generateFrameNumbers(config.texture, { start, end }),
+          frameRate: PLAYER.WALK_FRAME_RATE,
+          repeat: -1,
+        });
+      };
 
-    define(ANIM.WALK_DOWN, 0, 3);
-    define(ANIM.WALK_SIDE, 4, 7);
-    define(ANIM.WALK_UP, 8, 11);
+      define('down', 0, 3);
+      define('side', 4, 7);
+      define('up', 8, 11);
+    }
   }
 
   getFacing(): Facing {
@@ -196,7 +221,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     this.dashUntil = now + DASH.DURATION_MS;
-    this.dashReadyAt = now + DASH.COOLDOWN_MS;
+    this.dashReadyAt = now + DASH.COOLDOWN_MS * this.playerClass.dashCooldownMultiplier;
     this.dashNextAfterimageAt = 0;
 
     // Pasang kecepatan SEKARANG juga, jangan menunggu frame berikutnya: frame
@@ -215,7 +240,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   /** Bayangan sisa: salinan frame saat ini yang memudar lalu dihapus. */
   private spawnAfterimage(): void {
-    const ghost = this.scene.add.sprite(this.x, this.y, PLAYER_TEXTURE, this.frame.name);
+    // Texture mengikuti kelas, bukan konstanta — tiap kelas punya sprite sendiri.
+    const ghost = this.scene.add.sprite(this.x, this.y, this.playerClass.texture, this.frame.name);
     ghost.setFlipX(this.flipX);
     ghost.setDepth(this.depth - 1);
     ghost.setAlpha(0.45);
@@ -278,7 +304,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
     if (pointer.leftButtonDown()) this.tryAttack();
-    else if (pointer.rightButtonDown()) this.trySkill('purge');
+    else if (pointer.rightButtonDown()) this.trySkillSlot(0);
   }
 
   /** Sisa pendinginan skill dalam ms. 0 berarti siap. */
@@ -288,39 +314,50 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   /**
+   * Menjalankan skill pada slot tertentu (0 = tombol K, 1 = tombol L/Q).
+   * Skill mana yang ada di slot itu ditentukan oleh kelas.
+   *
    * Skill sengaja TIDAK memajukan combo dan tidak memakai sodokan:
    * combo adalah irama dasar, skill adalah selaan.
    */
-  private trySkill(id: SkillId): void {
-    const skill = SKILLS.find((s) => s.id === id);
-    if (!skill) return;
+  private trySkillSlot(slot: number): void {
+    const id = this.playerClass.skills[slot];
+    if (!id) return;
+    const skill = getSkill(id);
 
     const now = this.scene.time.now;
     if (now < this.recoveryUntil) return;
     if (this.skillCooldownRemaining(id) > 0) return;
 
-    this.skillReadyAt.set(id, now + skill.cooldownMs);
-    this.recoveryUntil = now + skill.step.recoveryMs * this.stats.recoveryMultiplier;
+    const windupMs = skill.kind === 'hitbox' ? skill.step.windupMs : skill.windupMs;
+    const recoveryMs = skill.kind === 'hitbox' ? skill.step.recoveryMs : skill.recoveryMs;
+
+    this.skillReadyAt.set(id, now + skill.cooldownMs * this.playerClass.skillCooldownMultiplier);
+    this.recoveryUntil = now + recoveryMs * this.stats.recoveryMultiplier;
     audio.play('swing');
 
-    this.scene.time.delayedCall(skill.step.windupMs, () => {
+    this.scene.time.delayedCall(windupMs, () => {
       if (!this.active) return;
       const payload: PlayerAttackPayload = {
-        step: skill.step,
+        // Skill `volley` tidak punya hitbox; `step` diisi langkah combo pertama
+        // hanya sebagai penampung, dan GameScene mengabaikannya.
+        step: skill.kind === 'hitbox' ? skill.step : COMBO[0],
         x: this.x,
         y: this.y,
         facing: this.facing,
         skillId: id,
+        skill,
       };
       this.emit(PLAYER_ATTACK_EVENT, payload);
     });
   }
 
-  /** Daftar skill beserta sisa pendinginannya — dipakai HUD. */
-  getSkillStatus(): { skill: Skill; remainingMs: number }[] {
-    return SKILLS.map((skill) => ({
-      skill,
-      remainingMs: this.skillCooldownRemaining(skill.id),
+  /** Skill kelas ini beserta sisa pendinginannya — dipakai HUD dan layar pilih kelas. */
+  getSkillStatus(): { skill: Skill; hotkey: string; remainingMs: number }[] {
+    return this.playerClass.skills.map((id, i) => ({
+      skill: getSkill(id),
+      hotkey: SKILL_HOTKEYS[i] ?? '?',
+      remainingMs: this.skillCooldownRemaining(id),
     }));
   }
 
@@ -346,11 +383,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Hitbox baru aktif setelah windup, supaya ada jeda ancang-ancang yang terbaca.
     this.scene.time.delayedCall(step.windupMs, () => {
       if (!this.active) return;
+      const ranged = this.playerClass.attackStyle === 'ranged';
       const payload: PlayerAttackPayload = {
         step,
         x: this.x,
         y: this.y,
         facing: this.facing,
+        ranged,
+        // Finisher combo menembak menyebar tiga arah.
+        projectileCount: ranged ? (index === COMBO.length - 1 ? 3 : 1) : undefined,
       };
       this.emit(PLAYER_ATTACK_EVENT, payload);
     });
@@ -382,8 +423,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     if (held(this.keys.attack)) this.tryAttack();
-    if (held(this.keys.purge)) this.trySkill('purge');
-    if (held(this.keys.shock)) this.trySkill('shock');
+    if (held(this.keys.purge)) this.trySkillSlot(0);
+    if (held(this.keys.shock)) this.trySkillSlot(1);
 
     // Selama sodokan, arah hadap dikunci supaya arah slash cocok dengan FX-nya.
     const lunging = now < this.lungeUntil;
@@ -424,11 +465,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (Math.abs(dx) >= Math.abs(dy)) {
       this.facing = dx > 0 ? 'right' : 'left';
       this.setFlipX(this.facing === 'left');
-      this.play(ANIM.WALK_SIDE, true);
+      this.play(animKey(this.playerClass.texture, 'side'), true);
     } else {
       this.facing = dy > 0 ? 'down' : 'up';
       this.setFlipX(false);
-      this.play(dy > 0 ? ANIM.WALK_DOWN : ANIM.WALK_UP, true);
+      this.play(animKey(this.playerClass.texture, dy > 0 ? 'down' : 'up'), true);
     }
   }
 

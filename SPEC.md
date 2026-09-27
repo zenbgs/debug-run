@@ -58,8 +58,8 @@ Kondisi menang: selesaikan wave 10. Kondisi kalah: HP pemain habis.
 |---|---|---|
 | Gerak | `WASD` | Arrow keys |
 | Serang (pukul) | `J` | Left click |
-| Skill 1 — Purge | `K` | Right click |
-| Skill 2 — Shock | `L` | `Q` |
+| Skill 1 (berbeda tiap kelas) | `K` | Right click |
+| Skill 2 (berbeda tiap kelas) | `L` | `Q` |
 | Dash | `Space` | `Shift` |
 | Pause | `Esc` | — |
 
@@ -85,54 +85,70 @@ tetap keyboard-only dan konsisten dengan sprite 3-arah yang kita punya (lihat §
 | Pukul 1 | 12 | 0.35 s | kotak 28×24 di depan | `slash-horizontal` (5 frame) |
 | Pukul 2 (combo) | 12 | — | kotak 28×24 di depan | `slash-upward` (5 frame) |
 | Pukul 3 (finisher) | 22 | 0.6 s | lingkaran r=34 | `slash-circular` (6 frame) |
-| **Purge** (skill 1) ✅ | 25 | 6 s | lingkaran r=44 | `slash-circular` di-scale 1.5× |
-| **Shock** (skill 2) ✅ | 18 + stun 0.8 s | 9 s | garis 96×22, tembus musuh | `electro-shock` (9 frame) |
 | **Dash** ✅ | — | 1.2 s | 160 px, i-frame penuh | after-image sprite |
 
-### 5.2.1 Skill dan dash (diimplementasi setelah M6)
+Skill tidak lagi universal — lihat §5.2.2 untuk daftar per kelas.
 
-**Dash** (`SPASI` / `SHIFT`): 160 px dalam 180 ms, pendinginan 1,2 detik, **kebal penuh**
-selama bergerak, dengan bayangan sisa yang memudar. Kebalnya disengaja — tanpa itu dash
-hanya melemparkan pemain ke dalam kerumunan dan justru menambah damage yang diterima.
-Arah dash mengikuti input gerak; kalau diam, mengikuti arah hadap.
+### 5.2.1 Kelas karakter
+
+Pemain memilih satu dari **3 kelas** sebelum bermain. ⚠️ Legacy Collection hanya punya
+**3 sprite karakter tampak-atas**, jadi jumlah kelas dibatasi oleh aset — menambah kelas
+ke-4 berarti dua kelas memakai sprite identik, yang membingungkan saat bermain.
+
+| Kelas | Sprite | HP | Serangan dasar | Ciri |
+|---|---|---|---|---|
+| **Warrior** | Guy | 130 | melee, damage x1,2 | paling tebal, dorongan terkuat |
+| **Archer** | PirateGirl | 85 | **panah jarak jauh** | tergesit, dash 20% lebih sering |
+| **Mage** | Blond_kid | 75 | melee, damage x0,65 | skill 2x lebih sering, damage skill x1,9 |
+
+⚠️ **Pengali damage kelas dipisah antara serangan dasar dan skill.** `damageMultiplier`
+hanya untuk pukulan biasa; skill memakai `skillDamageMultiplier`. Kalau keduanya
+dikalikan, pukulan lemah Mage ikut menyeret turun skill-nya — terukur Purge Mage 30,9 vs
+Cleave Warrior 30, kebalikan dari yang dirancang. Setelah dipisah: 47,5 vs 30.
+
+`stats.damageMultiplier` menampung **bonus upgrade saja**, bukan nilai kelas.
+
+### 5.2.2 Skill per kelas
+
+Setiap kelas punya sepasang skill sendiri; tidak ada yang dipakai bersama. Slot 1 di
+tombol `K` (atau klik kanan), slot 2 di `L`/`Q`.
+
+| Kelas | Slot 1 | Slot 2 |
+|---|---|---|
+| Warrior | **Cleave** - 30 dmg, r=46, knockback 460 (terkuat), cd 5,5 s | **Warcry** - 10 dmg, r=62, **stun 1,4 s**, cd 10 s |
+| Archer | **Volley** - 9 panah menyebar, 11 dmg/panah, cd 6 s | **Pin Shot** - 24 dmg, **menembus** + **stun 1 s**, cd 9 s |
+| Mage | **Purge** - 25 dmg, r=50, cd 6 s | **Shock** - 18 dmg, garis menembus + **stun 0,8 s**, cd 9 s |
+
+Skill punya dua jenis eksekusi: `hitbox` memakai jalur `CombatSystem.resolveAttack`
+yang sama dengan combo, sedangkan `volley` menembakkan panah lewat jalur proyektil.
+
+### 5.2.3 Dash
+
+`SPASI` / `SHIFT`: 160 px dalam 180 ms, pendinginan 1,2 detik, **kebal penuh** selama
+bergerak, dengan bayangan sisa yang memudar. Kebalnya disengaja — tanpa itu dash hanya
+melemparkan pemain ke dalam kerumunan dan justru menambah damage yang diterima.
 
 Dash tetap tunduk pada tabrakan tembok dan rintangan: menabrak pohon di tengah dash akan
 memotong jaraknya. Itu perilaku yang diinginkan, bukan bug.
 
+### 5.2.4 Panah — deteksi tumbukan manual
 
-Skill memakai struktur data yang sama dengan langkah combo (`AttackStep`), jadi seluruh
-jalur hitbox, knockback, hitstop, dan screen shake di `CombatSystem` dipakai ulang apa
-adanya — tidak ada cabang khusus skill. Bedanya hanya tiga: punya cooldown, tidak
-memajukan combo, dan boleh membuat musuh terpaku.
+Panah **tidak** memakai `physics.add.overlap`. Pendekatan itu sempat dipakai dan gagal
+diam-diam: panahnya hancur tapi damage tidak pernah masuk. Penyebab awalnya terukur —
+`body.setSize()` tidak memusatkan body pada sprite panah, sehingga body tertinggal di
+pojok frame 32x32 (sprite di (433,303), body di (417,287)) dan tidak pernah bersentuhan
+dengan musuh. Offset kini diset eksplisit, dan deteksi kenanya dihitung manual di
+`updateArrows()` seperti beam boss — jauh lebih mudah dibuktikan benar.
 
-**Efek tembus Shock didapat gratis:** `resolveAttack` memang sudah mengenai *setiap* musuh
-yang bertumpang tindih dengan hitbox, jadi hitbox garis panjang otomatis menembus.
+### 5.2.5 Cerita
 
-**Stun** (`Enemy.applyStun`): musuh berhenti total, AI tidak berjalan, dan diberi tint biru
-`0x8ad0ff` supaya terbaca. Warna aslinya dipulihkan saat stun berakhir. Stun yang sedang
-berjalan tidak bisa diperpendek oleh stun baru.
+Naskah ada di `src/data/story.ts`, terpisah dari logika. Tiga titik: pembuka (setelah
+pilih kelas), wave boss 5 dan 10, serta penutup setelah menang. `DialogueBox` memakai
+efek ketik; SPASI menuntaskan baris yang sedang diketik, lalu menekan lagi untuk lanjut.
 
-⚠️ **Sprite `electro-shock` adalah semburan petir vertikal dari satu titik, bukan sinar
-mendatar.** Memutarnya menyamping akan terlihat salah. Jadi FX-nya dimunculkan tiga kali
-di sepanjang garis serangan (`SHOCK_FX_STEPS`), bukan satu sprite yang diregangkan.
-
-**Combo window:** 0.6 detik antar pukulan. Lewat dari itu, combo reset ke pukul 1.
-
-**Knockback:** 90 px/detik selama 0.15 detik, arah menjauhi pemain.
-
-**Hitstop:** saat pukulan kena, freeze game 60 ms (finisher: 110 ms). Ini efek kecil
-tapi paling besar dampaknya ke rasa "nendang".
-
-### 5.3 Catatan penting soal animasi serang
-
-Sprite karakter top-down di koleksi ini **tidak punya animasi serang** — hanya idle + jalan.
-Solusinya (ini pola standar, bukan kompromi murahan):
-
-1. Saat menyerang, sprite pemain di-*lunge* 5 px ke arah hadap selama 120 ms lalu kembali.
-2. Sprite FX `slash-*` di-render sebagai entity terpisah di depan pemain.
-3. Tambah screen shake 2 px pada finisher & skill.
-
-Gabungan ketiganya terbaca sebagai animasi serang penuh oleh pemain.
+⚠️ Teks naskah **tidak boleh dipenggal manual** dengan karakter baris baru —
+`DialogueBox` memakai word-wrap, dan mencampur keduanya menghasilkan baris yatim
+satu kata.
 
 ---
 

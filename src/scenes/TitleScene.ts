@@ -39,8 +39,8 @@ export class TitleScene extends Phaser.Scene {
       [
         'WASD / panah    gerak',
         'J / klik kiri   pukul (combo 3)',
-        'K / klik kanan  skill Purge',
-        'L atau Q        skill Shock',
+        'K / klik kanan  skill 1 (per kelas)',
+        'L atau Q        skill 2 (per kelas)',
         'SPASI / SHIFT   dash (kebal)',
         '1 2 3           pilih upgrade',
         'ESC  M          jeda  senyapkan',
@@ -48,7 +48,7 @@ export class TitleScene extends Phaser.Scene {
       { size: 6, color: '#e8e4f0', align: 'left' }
     );
 
-    const prompt = addText(this, panel, cx, cy + 66, 'tekan SPASI untuk mulai', {
+    const prompt = addText(this, panel, cx, cy + 66, 'tekan SPASI untuk pilih kelas', {
       size: 8,
       color: '#ffe066',
     });
@@ -59,7 +59,7 @@ export class TitleScene extends Phaser.Scene {
       audio.unlock();
       audio.play('select');
       audio.startMusic();
-      this.scene.start('Game');
+      this.scene.start('CharacterSelect');
     };
 
     this.input.keyboard?.once('keydown-SPACE', start);
