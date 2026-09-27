@@ -18,6 +18,14 @@ export type PlayerStats = {
   maxHp: number;
   /** Porsi damage yang dikembalikan jadi HP. 0 = tidak ada. */
   lifesteal: number;
+
+  // --- Upgrade yang mengubah cara main, bukan sekadar angka ---
+  /** Dash melukai musuh yang dilewati. 0 = dash murni mobilitas. */
+  dashDamage: number;
+  /** Musuh yang mati meledak dan melukai sekitarnya. 0 = tidak meledak. */
+  deathBlastDamage: number;
+  /** Porsi damage kontak yang dipantulkan ke musuh yang menabrak. */
+  thorns: number;
 };
 
 export function createBaseStats(maxHp: number): PlayerStats {
@@ -28,6 +36,9 @@ export function createBaseStats(maxHp: number): PlayerStats {
     rangeMultiplier: 1,
     maxHp,
     lifesteal: 0,
+    dashDamage: 0,
+    deathBlastDamage: 0,
+    thorns: 0,
   };
 }
 
@@ -42,6 +53,15 @@ export type Upgrade = {
   /** Batas berapa kali upgrade ini boleh diambil. `undefined` = tak terbatas. */
   maxStacks?: number;
 };
+
+/**
+ * Radius efek untuk upgrade yang mengubah cara main.
+ * Dipisah dari daftar upgrade supaya gampang di-tune.
+ */
+export const UPGRADE_FX = {
+  DASH_HIT_RADIUS: 22,
+  DEATH_BLAST_RADIUS: 34,
+} as const;
 
 export const UPGRADES: readonly Upgrade[] = [
   {
@@ -97,6 +117,35 @@ export const UPGRADES: readonly Upgrade[] = [
     apply: () => {
       // Murni penyembuhan — tidak mengubah stat.
     },
+  },
+  {
+    id: 'sharp-dash',
+    name: 'Dash Tajam',
+    description: 'dash melukai yang dilewati',
+    apply: (s) => {
+      // Menumpuk, tapi tambahan pertamalah yang mengubah cara main:
+      // dash berubah dari tombol panik jadi bagian dari irama menyerang.
+      s.dashDamage += 22;
+    },
+    maxStacks: 3,
+  },
+  {
+    id: 'death-blast',
+    name: 'Ledakan Akhir',
+    description: 'musuh mati meledak',
+    apply: (s) => {
+      s.deathBlastDamage += 14;
+    },
+    maxStacks: 3,
+  },
+  {
+    id: 'thorns',
+    name: 'Duri',
+    description: '60% damage kontak dipantulkan',
+    apply: (s) => {
+      s.thorns += 0.6;
+    },
+    maxStacks: 2,
   },
   {
     id: 'vampiric',

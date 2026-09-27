@@ -9,7 +9,7 @@
 
 import { SHEETS } from './frames';
 
-export type EnemyBehavior = 'chase' | 'zigzag' | 'charger';
+export type EnemyBehavior = 'chase' | 'zigzag' | 'charger' | 'shooter';
 
 export type EnemyType = {
   id: string;
@@ -32,6 +32,8 @@ export type EnemyType = {
   idleFrameRate: number;
   /** Poin yang didapat saat musuh ini dibasmi. */
   score: number;
+  /** Damage proyektil. Hanya dipakai perilaku `shooter`. */
+  projectileDamage?: number;
   /**
    * Detik ke berapa tipe ini mulai boleh muncul.
    * Jadwal sengaja rapat: sesi bertahan-hidup biasanya 30-90 detik, jadi unlock
@@ -133,6 +135,26 @@ export const ENEMY_TYPES: readonly EnemyType[] = [
     unlockAtSeconds: 45,
   },
   {
+    id: 'spitter',
+    name: 'Spitter',
+    texture: MOTH.key,
+    frames: MOTH.frames,
+    tint: 0xc8f08a,
+    scale: 0.72,
+    hp: 28,
+    // Tidak dipakai untuk mengejar; hanya kecepatan menyesuaikan jarak.
+    speed: 52,
+    contactDamage: 6,
+    knockbackResist: 0,
+    behavior: 'shooter',
+    bodyWidth: 22,
+    bodyHeight: 16,
+    idleFrameRate: 10,
+    score: 25,
+    projectileDamage: 9,
+    unlockAtSeconds: 26,
+  },
+  {
     id: 'charger',
     name: 'Charger',
     texture: CRAWLER.key,
@@ -185,6 +207,29 @@ export const ZIGZAG = {
   AMPLITUDE: 0.7,
   /** Kecepatan osilasi, radian/detik. */
   FREQUENCY: 4.5,
+} as const;
+
+/**
+ * Perilaku `shooter`: menjaga jarak dan menembak.
+ *
+ * Ini jawaban atas masalah desain yang paling dalam: ketujuh musuh awal semuanya
+ * melee-kontak, sehingga strategi optimal selalu sama — mundur lalu ayun. Musuh
+ * yang menembak memaksa pemain bergerak, dan akhirnya membuat gerombolan batu dan
+ * pohon di arena berfungsi sebagai penghalang tembakan seperti yang dijanjikan
+ * SPEC.md §7.
+ */
+export const SHOOTER = {
+  /** Jarak ideal ke pemain. Terlalu dekat -> mundur, terlalu jauh -> mendekat. */
+  PREFERRED_RANGE: 130,
+  /** Toleransi sebelum menyesuaikan posisi, supaya tidak maju-mundur gelisah. */
+  RANGE_TOLERANCE: 22,
+  /** Jeda antar tembakan. */
+  COOLDOWN_MS: 1900,
+  /** Telegraf sebelum menembak — pemain harus sempat mencari perlindungan. */
+  WINDUP_MS: 450,
+  BOLT_SPEED: 150,
+  /** Warna saat bersiap menembak. */
+  AIM_TINT: 0xfff2b2,
 } as const;
 
 /** Perilaku `charger`: diam mengincar, lalu menerjang lurus. */

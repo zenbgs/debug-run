@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COMBAT } from '../data/combat';
-import { CHARGER, ZIGZAG, type EnemyType } from '../data/enemies';
+import { CHARGER, SHOOTER, ZIGZAG, type EnemyType } from '../data/enemies';
 import { SHEETS } from '../data/frames';
 import { audio } from '../systems/Audio';
 import { playFx } from '../systems/Fx';
@@ -34,6 +34,16 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private chargerPhase: ChargerPhase = 'aim';
   private chargerPhaseUntil = 0;
   private chargerDirection = new Phaser.Math.Vector2(0, 0);
+
+  /**
+   * Dipasang GameScene lewat factory. Musuh tidak tahu apa-apa soal sistem
+   * proyektil; ia hanya memanggil callback ini — pola yang sama dengan Boss.
+   */
+  onShoot?: (x: number, y: number, angle: number, speed: number, damage: number) => void;
+
+  private shootReadyAt = 0;
+  private shootWindupUntil = 0;
+  private aiming = false;
 
   /** Pelacak macet — lihat catatan di `applyUnstick`. */
   private lastX = 0;
@@ -83,6 +93,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   get isAlive(): boolean {
     return this.active && this.hp > 0;
+  }
+
+  /** HP mentah saat ini — dipakai menghitung damage yang benar-benar masuk. */
+  get currentHp(): number {
+    return this.hp;
   }
 
   get healthRatio(): number {
@@ -163,8 +178,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // Saat stun baru saja berakhir, kembalikan warna aslinya.
     if (this.stunnedUntil !== 0) {
       this.stunnedUntil = 0;
-      this.clearTint();
-      if (this.config.tint !== undefined) this.setTint(this.config.tint);
+      this.restoreTint();
     }
 
     // Selama terdorong, AI tidak mengambil alih — biar knockback terasa.
@@ -179,6 +193,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         break;
       case 'charger':
         this.moveCharger(body, target, now);
+        break;
+      case 'shooter':
+        this.moveShooter(body, target, now);
         break;
     }
 
@@ -258,6 +275,60 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     body.setVelocity(vx, vy);
   }
 
+  /**
+   * Menjaga jarak ideal lalu menembak. Ada telegraf singkat (musuh memutih dan
+   * berhenti) supaya pemain sempat berlindung di balik batu atau menghindar —
+   * tembakan tanpa aba-aba terasa tidak adil.
+   */
+  private moveShooter(
+    body: Phaser.Physics.Arcade.Body,
+    target: Phaser.Math.Vector2,
+    now: number
+  ): void {
+    // Sedang mengancang: diam total sampai peluru lepas.
+    if (this.aiming) {
+      body.setVelocity(0, 0);
+      if (now >= this.shootWindupUntil) {
+        this.aiming = false;
+        this.restoreTint();
+        const angle = Math.atan2(target.y - this.y, target.x - this.x);
+        this.onShoot?.(
+          this.x,
+          this.y,
+          angle,
+          SHOOTER.BOLT_SPEED,
+          this.config.projectileDamage ?? 8
+        );
+      }
+      return;
+    }
+
+    const dir = this.directionTo(target);
+    const jarak = Phaser.Math.Distance.Between(this.x, this.y, target.x, target.y);
+    const selisih = jarak - SHOOTER.PREFERRED_RANGE;
+
+    if (Math.abs(selisih) > SHOOTER.RANGE_TOLERANCE) {
+      // Terlalu jauh -> mendekat; terlalu dekat -> mundur.
+      const arah = selisih > 0 ? 1 : -1;
+      body.setVelocity(dir.x * this.config.speed * arah, dir.y * this.config.speed * arah);
+    } else {
+      body.setVelocity(0, 0);
+    }
+
+    if (now >= this.shootReadyAt) {
+      this.aiming = true;
+      this.shootWindupUntil = now + SHOOTER.WINDUP_MS;
+      this.shootReadyAt = now + SHOOTER.COOLDOWN_MS + SHOOTER.WINDUP_MS;
+      this.setTint(SHOOTER.AIM_TINT);
+    }
+  }
+
+  /** Mengembalikan warna asli tipe (atau menghapus tint kalau tipe tak bertint). */
+  private restoreTint(): void {
+    this.clearTint();
+    if (this.config.tint !== undefined) this.setTint(this.config.tint);
+  }
+
   private moveCharger(
     body: Phaser.Physics.Arcade.Body,
     target: Phaser.Math.Vector2,
@@ -270,6 +341,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
           this.chargerDirection = this.directionTo(target);
           this.chargerPhase = 'dash';
           this.chargerPhaseUntil = now + CHARGER.DASH_MS;
+          this.restoreTint();
           break;
         case 'dash':
           this.chargerPhase = 'recover';
@@ -278,6 +350,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         case 'recover':
           this.chargerPhase = 'aim';
           this.chargerPhaseUntil = now + CHARGER.AIM_MS;
+          // Telegraf: memutih selama mengincar. Tanpa ini terjangannya datang
+          // tanpa aba-aba yang terbaca, dan terasa tidak adil.
+          this.setTint(SHOOTER.AIM_TINT);
           break;
       }
     }

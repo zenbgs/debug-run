@@ -7,7 +7,7 @@ import { EMPTY } from '../data/tiles';
 import { ALL_SHEETS, SHEETS } from '../data/frames';
 import { SHOCK_FX_STEPS, type VolleyConfig } from '../data/skills';
 import { STORY_BOSS, STORY_VICTORY } from '../data/story';
-import type { Upgrade } from '../data/upgrades';
+import { UPGRADE_FX, type Upgrade } from '../data/upgrades';
 import { COMBO_SCORE, WAVES, WAVE_TIMING, waveClearBonus, type Wave } from '../data/waves';
 import { Boss, type BossContext } from '../entities/Boss';
 import { Enemy } from '../entities/Enemy';
@@ -22,6 +22,7 @@ import { buildArena } from '../systems/ArenaBuilder';
 import { audio } from '../systems/Audio';
 import { BossAttacks } from '../systems/BossAttacks';
 import { CombatSystem } from '../systems/CombatSystem';
+import { DamageNumbers } from '../systems/DamageNumbers';
 import { DialogueBox } from '../systems/DialogueBox';
 import { createFxAnimations, playFx } from '../systems/Fx';
 import { createParticleTexture } from '../systems/Particles';
@@ -88,6 +89,7 @@ export class GameScene extends Phaser.Scene {
   private classId?: string;
   private arrows!: Phaser.Physics.Arcade.Group;
   private dialogue!: DialogueBox;
+  private damageNumbers!: DamageNumbers;
   /** Wave boss yang ceritanya sudah diputar, supaya tidak berulang. */
   private readonly bossStoryShown = new Set<number>();
   /** Lihat getter `aliveEnemies`. */
@@ -99,6 +101,8 @@ export class GameScene extends Phaser.Scene {
   private lastKillAt = Number.NEGATIVE_INFINITY;
   private scoreMultiplier = 1;
   private bestMultiplier = 1;
+  /** Musuh yang sudah terkena dash ini; dikosongkan saat dash selesai. */
+  private readonly dashHitIds = new Set<Enemy>();
 
   constructor() {
     super('Game');
@@ -118,6 +122,7 @@ export class GameScene extends Phaser.Scene {
     this.lastKillAt = Number.NEGATIVE_INFINITY;
     this.scoreMultiplier = 1;
     this.bestMultiplier = 1;
+    this.dashHitIds.clear();
     this.hudSignature = '';
     this.activeBoss = undefined;
     this.bossBar = undefined;
@@ -158,6 +163,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.dialogue = new DialogueBox(this, this.player.playerClass.texture, SHEETS.BOSS_CORE.key);
+    this.damageNumbers = new DamageNumbers(this);
 
     this.bossAttacks = new BossAttacks(this);
     // Proyektil boss hancur kena tembok, dan menyakiti pemain kalau kena.
@@ -206,7 +212,16 @@ export class GameScene extends Phaser.Scene {
 
   /** Membuat Enemy biasa atau Boss, lengkap dengan konteks serangannya. */
   private createEnemy(type: EnemyType, x: number, y: number): Enemy {
-    if (!isBossType(type)) return new Enemy(this, x, y, type);
+    if (!isBossType(type)) {
+      const enemy = new Enemy(this, x, y, type);
+      // Musuh penembak memakai jalur proyektil yang sama dengan boss: tabrakan
+      // tembok, kedaluwarsa, dan damage ke pemain sudah ditangani di sana.
+      if (type.behavior === 'shooter') {
+        enemy.onShoot = (bx, by, angle, speed, damage) =>
+          this.bossAttacks.fireBolt(bx, by, angle, speed, damage);
+      }
+      return enemy;
+    }
 
     const context: BossContext = {
       fireBolt: (bx, by, angle, speed, damage) =>
@@ -284,6 +299,7 @@ export class GameScene extends Phaser.Scene {
     const hit = this.player.takeDamage(damage, bolt.x, bolt.y);
     bolt.destroy();
     if (hit) {
+      this.damageNumbers.show(this.player.x, this.player.y, damage, 'hurt');
       this.breakKillStreak();
       this.cameras.main.shake(120, 0.005);
     }
@@ -310,6 +326,53 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Upgrade "Dash Tajam": musuh yang dilewati saat dash ikut terluka.
+   * Tiap musuh hanya boleh kena sekali per dash — tanpa itu satu dash yang
+   * melewati musuh akan memukulnya sekali per frame.
+   */
+  private applyDashDamage(): void {
+    const damage = this.player.stats.dashDamage;
+    if (damage <= 0 || !this.player.isDashing) {
+      if (!this.player.isDashing) this.dashHitIds.clear();
+      return;
+    }
+
+    for (const enemy of this.aliveEnemies) {
+      if (this.dashHitIds.has(enemy)) continue;
+      const jarak = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+      if (jarak > UPGRADE_FX.DASH_HIT_RADIUS) continue;
+
+      this.dashHitIds.add(enemy);
+      const away = new Phaser.Math.Vector2(enemy.x - this.player.x, enemy.y - this.player.y);
+      if (away.lengthSq() < 1) away.set(1, 0);
+      away.normalize().scale(220);
+
+      this.damageNumbers.show(enemy.x, enemy.y, damage, 'crit');
+      if (enemy.takeDamage(damage, away.x, away.y)) this.registerKill(enemy);
+    }
+  }
+
+  /** Upgrade "Ledakan Akhir": musuh yang mati melukai tetangganya. */
+  private applyDeathBlast(x: number, y: number, korban: Enemy): void {
+    const damage = this.player.stats.deathBlastDamage;
+    if (damage <= 0) return;
+
+    playFx(this, SHEETS.FX_ENEMY_DEATH.key, x, y, { scale: 1.1 });
+    for (const enemy of this.aliveEnemies) {
+      if (enemy === korban) continue;
+      const jarak = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
+      if (jarak > UPGRADE_FX.DEATH_BLAST_RADIUS) continue;
+
+      const away = new Phaser.Math.Vector2(enemy.x - x, enemy.y - y);
+      if (away.lengthSq() < 1) away.set(1, 0);
+      away.normalize().scale(160);
+
+      this.damageNumbers.show(enemy.x, enemy.y, damage, 'hit');
+      if (enemy.takeDamage(damage, away.x, away.y)) this.registerKill(enemy);
+    }
+  }
+
+  /**
    * Satu-satunya tempat skor bertambah dari membunuh. Semua jalur serangan
    * (melee, panah, skill) lewat sini supaya pengali tidak pernah terlewat.
    */
@@ -328,6 +391,9 @@ export class GameScene extends Phaser.Scene {
     this.kills++;
     this.score += enemy.config.score * this.scoreMultiplier;
     this.invalidateAliveCache();
+
+    // Dipanggil setelah cache dibatalkan supaya ledakan melihat daftar terbaru.
+    this.applyDeathBlast(enemy.x, enemy.y, enemy);
   }
 
   /** Rantai putus saat pemain kena. */
@@ -445,6 +511,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const targets = this.aliveEnemies;
+    const hpSebelum = new Map(targets.map((e) => [e, e.currentHp]));
     const result = this.combat.resolveAttack(step, { x, y, facing }, targets, {
       // Pengali kelas dipilih menurut jenis serangan: skill memakai
       // `skillDamageMultiplier`, pukulan biasa memakai `damageMultiplier`.
@@ -458,6 +525,11 @@ export class GameScene extends Phaser.Scene {
 
     // Musuh yang mati sudah destroy() sendiri; hitung selisihnya untuk skor.
     for (const enemy of targets) {
+      const sebelum = hpSebelum.get(enemy) ?? 0;
+      const masuk = sebelum - enemy.currentHp;
+      if (masuk > 0) {
+        this.damageNumbers.show(enemy.x, enemy.y, masuk, skillId ? 'crit' : 'hit');
+      }
       if (!enemy.isAlive) this.registerKill(enemy);
     }
 
@@ -609,6 +681,7 @@ export class GameScene extends Phaser.Scene {
         if (away.lengthSq() < 1) away.set(1, 0);
         away.normalize().scale(ARROW_KNOCKBACK);
 
+        this.damageNumbers.show(target.x, target.y, damage, 'hit');
         const killed = target.takeDamage(damage, away.x, away.y);
         if (killed) {
           this.registerKill(target);
@@ -637,6 +710,15 @@ export class GameScene extends Phaser.Scene {
       enemyObject.y
     );
     if (hit) {
+      this.damageNumbers.show(this.player.x, this.player.y, enemyObject.config.contactDamage, 'hurt');
+
+      // Upgrade "Duri": penabrak ikut menerima sebagian damage kontaknya.
+      const thorns = this.player.stats.thorns;
+      if (thorns > 0) {
+        const pantulan = enemyObject.config.contactDamage * thorns;
+        this.damageNumbers.show(enemyObject.x, enemyObject.y, pantulan, 'hit');
+        if (enemyObject.takeDamage(pantulan, 0, 0)) this.registerKill(enemyObject);
+      }
       this.breakKillStreak();
       this.cameras.main.shake(140, 0.006);
       // Sengaja TIDAK pakai camera.flash(): efek itu beranjak dari alpha 1, jadi
@@ -897,6 +979,8 @@ ${skills}  ${dash}`
 
       this.bossAttacks.update(delta, this.player);
       this.updateArrows();
+      this.damageNumbers.update(delta);
+      this.applyDashDamage();
       this.waves.update(delta, alive.length, this.cameras.main);
 
       // Panel upgrade dibuka setelah jeda pendek pasca wave bersih.

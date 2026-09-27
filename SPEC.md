@@ -199,6 +199,7 @@ diimplementasi di `src/data/enemies.ts` (terverifikasi di M3).
 | 3 | **Moth** | ngengat | — | 35 | 88* | zigzag | 10 | 20 s |
 | 4 | **Crawler** | kumbang mesin | — | 45 | 45 | kejar, tahan knockback 40% | 12 | 32 s |
 | 5 | **Moth Biru** | ngengat | biru | 24 | 118* | zigzag | 9 | 45 s |
+| 6 | **Spitter** | ngengat | hijau | 28 | 52 | **menjaga jarak & menembak** | 9 (proyektil) | 26 s |
 | 6 | **Charger** | kumbang mesin | oranye | 55 | 210 | incar 0,9 s → terjang 0,42 s → pulih 0,7 s | 18 | 60 s |
 | 7 | **Crawler Berat** | kumbang mesin | ungu | 80 | 32 | kejar, tahan knockback 80% | 16 | 78 s |
 | B1 | **Stack Overflow** (wave 5) | `boss-core`, skala 0.42 | — | 350 | 26 | spread → summon → charge | 20 | M5 |
@@ -236,6 +237,21 @@ supaya wave boss tidak pernah kehabisan slot spawn.
 Wave bersih -> bonus skor `50 x nomor wave`, lalu pemain memilih 1 dari 3 upgrade.
 Setelah wave 10 tidak ada tawaran upgrade — langsung layar menang.
 
+### 6.0b Spitter — musuh penembak
+
+Ketujuh musuh awal semuanya melee-kontak, sehingga strategi optimal selalu sama:
+mundur lalu ayun. **Spitter** menjaga jarak 130 px dan menembak, memaksa pemain
+bergerak — dan akhirnya membuat gerombolan batu/pohon di arena berfungsi sebagai
+penghalang tembakan seperti yang dijanjikan §7.
+
+Ada telegraf 0,45 detik: Spitter berhenti dan memutih sebelum melepas tembakan,
+jadi pemain punya waktu berlindung. Proyektilnya memakai jalur `BossAttacks.fireBolt()`
+yang sudah menangani tabrakan tembok, kedaluwarsa, dan damage ke pemain — tidak ada
+sistem proyektil baru.
+
+**Charger** juga kini memutih selama fase mengincar. Sebelumnya terjangannya datang
+tanpa aba-aba yang terbaca dan terasa tidak adil.
+
 ### 6.1b Pengali skor dari rantai bunuh
 
 Sebelumnya skor hanya kill + bonus wave, jadi pemain yang menghindar sempurna dan
@@ -257,11 +273,33 @@ Semua jalur serangan (melee, panah, skill) mencatat bunuh lewat satu fungsi
 
 ### 6.2 Upgrade antar wave
 
-7 upgrade di `src/data/upgrades.ts`, ditawarkan 3 acak tiap wave, dipilih lewat tombol 1/2/3.
-Semuanya benar-benar terpasang ke stat: Pisau Tajam (+25% damage), Sepatu Ringan (+15%
-kecepatan), Tangan Cepat (memukul 15% lebih cepat), Jangkauan (+20% hitbox), Zirah (+25 HP
-maks), Hotfix (pulih 45 HP), Vampirik (8% damage jadi HP). Upgrade yang mudah menumpuk
-punya batas stack supaya tidak memecah balancing.
+10 upgrade di `src/data/upgrades.ts`, ditawarkan 3 acak tiap wave, dipilih lewat tombol
+1/2/3. Semuanya benar-benar terpasang ke stat; yang mudah menumpuk punya batas stack.
+
+**Pengali datar:** Pisau Tajam (+25% damage), Sepatu Ringan (+15% kecepatan), Tangan
+Cepat (memukul 15% lebih cepat), Jangkauan (+20% hitbox), Zirah (+25 HP maks), Hotfix
+(pulih 45 HP), Vampirik (8% damage jadi HP).
+
+**Mengubah cara main** — ditambahkan karena tujuh upgrade awal semuanya hanya angka,
+tidak ada yang mengubah keputusan pemain:
+
+| Upgrade | Efek | Terukur |
+|---|---|---|
+| **Dash Tajam** | dash melukai musuh yang dilewati | 22 damage per dash, sekali per musuh |
+| **Ledakan Akhir** | musuh yang mati melukai tetangganya (r=34) | 14 damage ke tetangga |
+| **Duri** | 60% damage kontak dipantulkan ke penabrak | 4,8 dari damage kontak 8 |
+
+Dash Tajam juga menjawab catatan lama bahwa dash murni defensif: ia berubah dari
+tombol panik jadi bagian dari irama menyerang.
+
+### 6.3 Angka damage
+
+`systems/DamageNumbers.ts` menampilkan angka melayang saat musuh atau pemain kena.
+Tanpa ini pemain tidak punya cara tahu apakah "+25% damage" berpengaruh.
+
+Objek teks **dikumpulkan dalam pool** (18 slot, dipakai berputar): membuat `Text` baru
+tiap pukulan berarti membuat texture canvas baru tiap kali — jauh lebih mahal daripada
+sprite biasa. Kalau pool penuh, angka tertua diambil alih.
 
 ### 6.3 Boss
 

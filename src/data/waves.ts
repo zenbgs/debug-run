@@ -56,7 +56,10 @@ export const WAVES: readonly Wave[] = [
     label: 'Memory Leak',
     entries: [
       { typeId: 'crawler', count: 4 },
-      { typeId: 'moth', count: 3 },
+      { typeId: 'moth', count: 2 },
+      // Penembak pertama: memaksa pemain bergerak dan memakai rintangan
+      // sebagai perlindungan, bukan sekadar mundur lalu mengayun.
+      { typeId: 'spitter', count: 1 },
     ],
     spawnIntervalMs: 700,
     maxAlive: 9,
@@ -86,8 +89,9 @@ export const WAVES: readonly Wave[] = [
     number: 7,
     label: 'Deadlock',
     entries: [
-      { typeId: 'crawler', count: 5 },
+      { typeId: 'crawler', count: 4 },
       { typeId: 'moth-swift', count: 3 },
+      { typeId: 'spitter', count: 2 },
     ],
     spawnIntervalMs: 600,
     maxAlive: 10,
@@ -108,7 +112,8 @@ export const WAVES: readonly Wave[] = [
     entries: [
       { typeId: 'crawler-heavy', count: 3 },
       { typeId: 'charger', count: 2 },
-      { typeId: 'moth', count: 4 },
+      { typeId: 'moth', count: 3 },
+      { typeId: 'spitter', count: 3 },
     ],
     spawnIntervalMs: 550,
     maxAlive: 12,

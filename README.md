@@ -42,7 +42,9 @@ Tidak butuh backend, tidak butuh konfigurasi. Cukup buka di browser desktop.
 ## Isi permainan
 
 - **10 wave** dengan kurva kesulitan menanjak, plus **2 boss** di wave 5 dan 10
-- **7 tipe musuh** dengan 3 perilaku berbeda: mengejar, zigzag, dan menerjang
+- **8 tipe musuh** dengan 4 perilaku: mengejar, zigzag, menerjang, dan **menembak
+  dari jarak jauh** — yang terakhir memaksa kamu bergerak dan memakai rintangan
+  arena sebagai perlindungan
 - **Combo 3 pukulan** dengan hitstop, knockback, dan screen shake
 - **3 kelas karakter** dengan cara main berbeda, dipilih sebelum mulai:
   Warrior (tebal, ayunan melee), Archer (panah jarak jauh 190 px, tergesit),
@@ -54,7 +56,10 @@ Tidak butuh backend, tidak butuh konfigurasi. Cukup buka di browser desktop.
 - **Cerita bergaya RPG** dengan kotak dialog berefek ketik di pembuka,
   kedua wave boss, dan penutup
 - **Dash** 160 px dengan kebal penuh dan bayangan sisa, pendinginan 1,2 detik
-- **7 upgrade**, dipilih 1 dari 3 setiap kali wave bersih
+- **10 upgrade**, dipilih 1 dari 3 setiap kali wave bersih — tiga di antaranya
+  mengubah cara main: dash yang melukai, musuh yang meledak saat mati, dan duri
+  yang memantulkan damage kontak
+- **Angka damage melayang**, jadi efek upgrade benar-benar terasa
 - **Pengali skor dari rantai bunuh** hingga x5 — putus kalau kamu kena pukul,
   jadi bermain rapi benar-benar terbayar
 - **Layout arena acak tiap sesi**, bisa dikunci ke seed tetap saat debugging
