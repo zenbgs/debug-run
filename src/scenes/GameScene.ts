@@ -3,6 +3,7 @@ import { isBossType, SPAWNABLE_BY_ID } from '../data/bosses';
 import { CAMERA, TILE } from '../data/config';
 import type { EnemyType } from '../data/enemies';
 import { EMPTY } from '../data/tiles';
+import { SHOCK_FX_STEPS } from '../data/skills';
 import type { Upgrade } from '../data/upgrades';
 import { WAVES, WAVE_TIMING, waveClearBonus, type Wave } from '../data/waves';
 import { Boss, type BossContext } from '../entities/Boss';
@@ -273,16 +274,30 @@ export class GameScene extends Phaser.Scene {
 
   private onPlayerAttack(payload: PlayerAttackPayload): void {
     if (this.state !== 'playing') return;
-    const { step, x, y, facing } = payload;
+    const { step, x, y, facing, skillId } = payload;
 
     const dirX = facing === 'right' ? 1 : facing === 'left' ? -1 : 0;
     const dirY = facing === 'down' ? 1 : facing === 'up' ? -1 : 0;
 
-    playFx(this, step.fxKey, x + dirX * step.fxOffset, y + dirY * step.fxOffset, {
-      scale: step.fxScale,
-      angle: FX_ANGLE[facing],
-      flipX: facing === 'left',
-    });
+    if (skillId === 'shock' && step.shape.type === 'rect') {
+      // Sprite petir menyembur vertikal dari satu titik, bukan sinar mendatar.
+      // Jadi FX-nya ditaruh beberapa kali di sepanjang garis serangan.
+      const span = step.shape.width;
+      for (const t of SHOCK_FX_STEPS) {
+        const distance = (t - 0.5) * span + step.shape.reach;
+        playFx(this, step.fxKey, x + dirX * distance, y + dirY * distance, {
+          scale: step.fxScale,
+        });
+      }
+    } else {
+      playFx(this, step.fxKey, x + dirX * step.fxOffset, y + dirY * step.fxOffset, {
+        scale: step.fxScale,
+        angle: FX_ANGLE[facing],
+        flipX: facing === 'left',
+      });
+    }
+
+    if (skillId) audio.play('upgrade');
 
     const targets = this.aliveEnemies;
     const result = this.combat.resolveAttack(step, { x, y, facing }, targets, {
@@ -509,10 +524,20 @@ export class GameScene extends Phaser.Scene {
       .fillRect(4, 4, Math.max(0, width * ratio), height);
 
     const sisa = aliveCount + this.waves.remainingInQueue;
+    const skills = this.player
+      .getSkillStatus()
+      .map(({ skill, remainingMs }) =>
+        remainingMs > 0
+          ? `[${skill.hotkey}]${(remainingMs / 1000).toFixed(1)}s`
+          : `[${skill.hotkey}]${skill.name}`
+      )
+      .join('  ');
+
     this.hudText.setText(
       `${Math.ceil(this.player.health)}/${this.player.maxHealth}   ` +
         `WAVE ${this.waves.waveNumber}/${this.waves.totalWaves}   ` +
-        `sisa ${sisa}   skor ${this.score}`
+        `sisa ${sisa}   skor ${this.score}
+${skills}`
     );
   }
 

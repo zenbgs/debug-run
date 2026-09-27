@@ -85,9 +85,27 @@ tetap keyboard-only dan konsisten dengan sprite 3-arah yang kita punya (lihat §
 | Pukul 1 | 12 | 0.35 s | kotak 28×24 di depan | `slash-horizontal` (5 frame) |
 | Pukul 2 (combo) | 12 | — | kotak 28×24 di depan | `slash-upward` (5 frame) |
 | Pukul 3 (finisher) | 22 | 0.6 s | lingkaran r=34 | `slash-circular` (6 frame) |
-| **Purge** (skill 1) | 25 | 6 s | lingkaran r=44 | `slash-circular` di-scale 1.5× |
-| **Shock** (skill 2) | 18 + stun 0.8 s | 9 s | garis 96×20, tembus musuh | `electro-shock` (9 frame) |
-| **Dash** | — | 1.2 s | 160 px, i-frame penuh | after-image sprite |
+| **Purge** (skill 1) ✅ | 25 | 6 s | lingkaran r=44 | `slash-circular` di-scale 1.5× |
+| **Shock** (skill 2) ✅ | 18 + stun 0.8 s | 9 s | garis 96×22, tembus musuh | `electro-shock` (9 frame) |
+| **Dash** ⬜ | — | 1.2 s | 160 px, i-frame penuh | after-image sprite |
+
+### 5.2.1 Skill (diimplementasi setelah M6)
+
+Skill memakai struktur data yang sama dengan langkah combo (`AttackStep`), jadi seluruh
+jalur hitbox, knockback, hitstop, dan screen shake di `CombatSystem` dipakai ulang apa
+adanya — tidak ada cabang khusus skill. Bedanya hanya tiga: punya cooldown, tidak
+memajukan combo, dan boleh membuat musuh terpaku.
+
+**Efek tembus Shock didapat gratis:** `resolveAttack` memang sudah mengenai *setiap* musuh
+yang bertumpang tindih dengan hitbox, jadi hitbox garis panjang otomatis menembus.
+
+**Stun** (`Enemy.applyStun`): musuh berhenti total, AI tidak berjalan, dan diberi tint biru
+`0x8ad0ff` supaya terbaca. Warna aslinya dipulihkan saat stun berakhir. Stun yang sedang
+berjalan tidak bisa diperpendek oleh stun baru.
+
+⚠️ **Sprite `electro-shock` adalah semburan petir vertikal dari satu titik, bukan sinar
+mendatar.** Memutarnya menyamping akan terlihat salah. Jadi FX-nya dimunculkan tiga kali
+di sepanjang garis serangan (`SHOCK_FX_STEPS`), bukan satu sprite yang diregangkan.
 
 **Combo window:** 0.6 detik antar pukulan. Lewat dari itu, combo reset ke pukul 1.
 

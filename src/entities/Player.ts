@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COMBAT, COMBO, type AttackStep } from '../data/combat';
 import { PLAYER } from '../data/config';
 import { SHEETS } from '../data/frames';
+import { SKILLS, type Skill, type SkillId } from '../data/skills';
 import { createBaseStats, type PlayerStats, type Upgrade } from '../data/upgrades';
 import { audio } from '../systems/Audio';
 
@@ -20,6 +21,8 @@ export type PlayerAttackPayload = {
   x: number;
   y: number;
   facing: Facing;
+  /** Terisi kalau serangan ini berasal dari skill, bukan combo biasa. */
+  skillId?: SkillId;
 };
 
 /**
@@ -52,6 +55,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private recoveryUntil = 0;
   private lungeUntil = 0;
 
+  /** Waktu (ms) kapan tiap skill boleh dipakai lagi. */
+  private readonly skillReadyAt = new Map<SkillId, number>();
+
   private hp: number = PLAYER.MAX_HP;
   private invulnerableUntil = 0;
   private hurtKnockbackUntil = 0;
@@ -65,6 +71,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     left: Phaser.Input.Keyboard.Key[];
     right: Phaser.Input.Keyboard.Key[];
     attack: Phaser.Input.Keyboard.Key[];
+    purge: Phaser.Input.Keyboard.Key[];
+    shock: Phaser.Input.Keyboard.Key[];
   };
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
@@ -91,7 +99,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       left: [keyboard.addKey(K.A), keyboard.addKey(K.LEFT)],
       right: [keyboard.addKey(K.D), keyboard.addKey(K.RIGHT)],
       attack: [keyboard.addKey(K.J)],
+      purge: [keyboard.addKey(K.K)],
+      shock: [keyboard.addKey(K.L), keyboard.addKey(K.Q)],
     };
+
+    // Klik kanan dipakai Purge, jadi menu konteks browser harus dimatikan.
+    scene.input.mouse?.disableContextMenu();
 
     scene.input.on(Phaser.Input.Events.POINTER_DOWN, this.onPointerDown, this);
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -202,6 +215,50 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
     if (pointer.leftButtonDown()) this.tryAttack();
+    else if (pointer.rightButtonDown()) this.trySkill('purge');
+  }
+
+  /** Sisa pendinginan skill dalam ms. 0 berarti siap. */
+  skillCooldownRemaining(id: SkillId): number {
+    const readyAt = this.skillReadyAt.get(id) ?? 0;
+    return Math.max(0, readyAt - this.scene.time.now);
+  }
+
+  /**
+   * Skill sengaja TIDAK memajukan combo dan tidak memakai sodokan:
+   * combo adalah irama dasar, skill adalah selaan.
+   */
+  private trySkill(id: SkillId): void {
+    const skill = SKILLS.find((s) => s.id === id);
+    if (!skill) return;
+
+    const now = this.scene.time.now;
+    if (now < this.recoveryUntil) return;
+    if (this.skillCooldownRemaining(id) > 0) return;
+
+    this.skillReadyAt.set(id, now + skill.cooldownMs);
+    this.recoveryUntil = now + skill.step.recoveryMs * this.stats.recoveryMultiplier;
+    audio.play('swing');
+
+    this.scene.time.delayedCall(skill.step.windupMs, () => {
+      if (!this.active) return;
+      const payload: PlayerAttackPayload = {
+        step: skill.step,
+        x: this.x,
+        y: this.y,
+        facing: this.facing,
+        skillId: id,
+      };
+      this.emit(PLAYER_ATTACK_EVENT, payload);
+    });
+  }
+
+  /** Daftar skill beserta sisa pendinginannya — dipakai HUD. */
+  getSkillStatus(): { skill: Skill; remainingMs: number }[] {
+    return SKILLS.map((skill) => ({
+      skill,
+      remainingMs: this.skillCooldownRemaining(skill.id),
+    }));
   }
 
   private nextComboIndex(now: number): number {
@@ -252,6 +309,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const held = (group: Phaser.Input.Keyboard.Key[]) => group.some((key) => key.isDown);
 
     if (held(this.keys.attack)) this.tryAttack();
+    if (held(this.keys.purge)) this.trySkill('purge');
+    if (held(this.keys.shock)) this.trySkill('shock');
 
     // Selama sodokan, arah hadap dikunci supaya arah slash cocok dengan FX-nya.
     const lunging = now < this.lungeUntil;

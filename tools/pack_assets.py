@@ -37,6 +37,7 @@ JOBS = [
     ("fx-slash-circular", "fx", os.path.join(GROTTO, "slash-circular", "*.png")),
     ("fx-enemy-death", "fx", os.path.join(GROTTO, "enemy-death", "*.png")),
     ("fx-hit", "fx", os.path.join(FX, "Hit", "Sprites", "*.png")),
+    ("fx-electro-shock", "fx", os.path.join(GROTTO, "electro-shock", "*.png")),
     (
         "enemy-beetle",
         "sprites",

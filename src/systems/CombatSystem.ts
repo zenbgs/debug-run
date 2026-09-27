@@ -98,7 +98,8 @@ export class CombatSystem {
       if (away.lengthSq() < 1) away.set(dir.x, dir.y);
       away.normalize().scale(step.knockback);
 
-      enemy.takeDamage(damage, away.x, away.y);
+      const killed = enemy.takeDamage(damage, away.x, away.y);
+      if (!killed && step.stunMs) enemy.applyStun(step.stunMs);
       damageDealt += damage;
       hits++;
     }

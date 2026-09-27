@@ -30,6 +30,8 @@ Tidak butuh backend, tidak butuh konfigurasi. Cukup buka di browser desktop.
 |---|---|
 | Gerak | `WASD` atau panah |
 | Pukul (combo 3 langkah) | `J` atau klik kiri |
+| Skill Purge — AoE melingkar | `K` atau klik kanan |
+| Skill Shock — garis menembus + stun | `L` atau `Q` |
 | Pilih upgrade antar wave | `1` / `2` / `3` |
 | Jeda | `Esc` |
 | Senyapkan audio | `M` |
@@ -41,6 +43,8 @@ Tidak butuh backend, tidak butuh konfigurasi. Cukup buka di browser desktop.
 - **10 wave** dengan kurva kesulitan menanjak, plus **2 boss** di wave 5 dan 10
 - **7 tipe musuh** dengan 3 perilaku berbeda: mengejar, zigzag, dan menerjang
 - **Combo 3 pukulan** dengan hitstop, knockback, dan screen shake
+- **2 skill berpendingin**: Purge (AoE melingkar, 25 damage) dan Shock (garis menembus,
+  18 damage + membuat musuh terpaku 0,8 detik)
 - **7 upgrade**, dipilih 1 dari 3 setiap kali wave bersih
 - Boss punya 4 pola serangan (tembakan melingkar, beam bertelegraf, memanggil musuh,
   menerjang) dan **fase kedua** di bawah 50% HP
@@ -52,7 +56,7 @@ SFX dan musik disintesis lewat Web Audio API dari oscillator dan noise
 (`src/systems/Audio.ts`). Browser baru mengizinkan bunyi setelah interaksi pengguna,
 jadi audio terbuka saat menekan SPASI di layar judul.
 
-**Total aset hanya ~100 KB.** Empat spritesheet, satu tileset, lima FX — semuanya di-pack
+**Total aset hanya ~100 KB.** Tujuh spritesheet, satu tileset, delapan FX — semuanya di-pack
 dari frame per-PNG oleh `tools/pack_assets.py`.
 
 **Angka balancing ada di `src/data/`,** terpisah dari logika. Menyetel permainan berarti
@@ -62,7 +66,7 @@ mengubah data, bukan kode.
 
 ```
 src/
-  data/       angka tuning: combat, musuh, boss, wave, upgrade, index tile
+  data/       angka tuning: combat, skill, musuh, boss, wave, upgrade, tile
   entities/   Player, Enemy, Boss
   scenes/     BootScene (preload), TitleScene, GameScene
   systems/    ArenaBuilder, CombatSystem, WaveManager, BossAttacks,
@@ -113,8 +117,9 @@ Semua milestone selesai.
 | M4 | 10 wave, upgrade, skor, game over | ✅ |
 | M5 | 2 boss + pola serangan + fase | ✅ |
 | M6 | Audio, partikel, layar judul, balancing | ✅ |
+| + | Skill Purge & Shock (SPEC §5.2.1) | ✅ |
 
-Belum ada: skill Purge/Shock dan dash (SPEC §4), font pixel `Press Start 2P`.
+Belum ada: dash (SPEC §5.2) dan font pixel `Press Start 2P`.
 
 ## Lisensi
 

@@ -62,6 +62,13 @@ export const SHEETS = {
     frameHeight: 224,
     frames: 11,
   },
+  FX_ELECTRO_SHOCK: {
+    key: 'fx-electro-shock',
+    path: 'assets/fx/fx-electro-shock.png',
+    frameWidth: 128,
+    frameHeight: 96,
+    frames: 9,
+  },
   FX_SLASH_HORIZONTAL: {
     key: 'fx-slash-horizontal',
     path: 'assets/fx/fx-slash-horizontal.png',

@@ -26,6 +26,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   private hp: number;
   private knockbackUntil = 0;
+  private stunnedUntil = 0;
   private flashTimer?: Phaser.Time.TimerEvent;
 
   /** Fase acak per musuh, supaya goyangan zigzag tidak seragam. */
@@ -88,6 +89,20 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     return Phaser.Math.Clamp(this.hp / this.config.hp, 0, 1);
   }
 
+  get isStunned(): boolean {
+    return this.scene.time.now < this.stunnedUntil;
+  }
+
+  /** Membuat musuh terpaku: berhenti total dan AI tidak berjalan. Dipakai skill Shock. */
+  applyStun(durationMs: number): void {
+    if (!this.isAlive || durationMs <= 0) return;
+
+    // Jangan memperpendek stun yang sedang berjalan.
+    this.stunnedUntil = Math.max(this.stunnedUntil, this.scene.time.now + durationMs);
+    (this.body as Phaser.Physics.Arcade.Body | null)?.setVelocity(0, 0);
+    this.setTint(COMBAT.STUN_TINT);
+  }
+
   /** @returns true kalau serangan ini membunuhnya. */
   takeDamage(amount: number, knockbackX: number, knockbackY: number): boolean {
     if (!this.isAlive) return false;
@@ -120,7 +135,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.flashTimer = this.scene.time.delayedCall(COMBAT.HIT_FLASH_MS, () => {
       if (!this.active) return;
       this.clearTint();
-      if (original !== undefined) this.setTint(original);
+      // Musuh yang masih terpaku harus tetap memakai warna stun.
+      if (this.isStunned) this.setTint(COMBAT.STUN_TINT);
+      else if (original !== undefined) this.setTint(original);
     });
   }
 
@@ -136,6 +153,19 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   tick(target: Phaser.Math.Vector2, now: number, deltaSeconds: number): void {
     const body = this.body as Phaser.Physics.Arcade.Body | null;
     if (!body) return;
+
+    // Terpaku: diam total, AI tidak jalan.
+    if (now < this.stunnedUntil) {
+      body.setVelocity(0, 0);
+      return;
+    }
+
+    // Saat stun baru saja berakhir, kembalikan warna aslinya.
+    if (this.stunnedUntil !== 0) {
+      this.stunnedUntil = 0;
+      this.clearTint();
+      if (this.config.tint !== undefined) this.setTint(this.config.tint);
+    }
 
     // Selama terdorong, AI tidak mengambil alih — biar knockback terasa.
     if (now < this.knockbackUntil) return;

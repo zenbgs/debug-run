@@ -26,6 +26,8 @@ export type AttackStep = {
   hitstopMs: number;
   /** Getaran kamera saat kena. */
   shakeIntensity: number;
+  /** Lama musuh terpaku setelah kena. `undefined` = tidak membuat terpaku. */
+  stunMs?: number;
 };
 
 /**
@@ -98,6 +100,8 @@ export const COMBAT = {
   ENEMY_DRAG: 320,
   /** Lama musuh berkedip putih setelah kena. */
   HIT_FLASH_MS: 90,
+  /** Warna musuh selagi terpaku akibat Shock. */
+  STUN_TINT: 0x8ad0ff,
 } as const;
 
 export const ENEMY_DUMMY = {

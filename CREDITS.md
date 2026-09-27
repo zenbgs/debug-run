@@ -39,6 +39,7 @@ penulisnya. Dukung karyanya di <https://ansimuz.itch.io/>.
 | `public/assets/fx/fx-slash-circular.png` | `.../Grotto-escape-2-FX/sprites/slash-circular/` | FX finisher |
 | `public/assets/fx/fx-enemy-death.png` | `.../Grotto-escape-2-FX/sprites/enemy-death/` | FX musuh mati |
 | `public/assets/fx/fx-hit.png` | `Assets/Explosions and Magic/Hit/Sprites/` | FX kena pukul |
+| `public/assets/fx/fx-electro-shock.png` | `.../Grotto-escape-2-FX/sprites/electro-shock/` | FX skill Shock |
 | `public/assets/sprites/boss-core.png` | `Assets/Warped/Characters/top-down-boss/PNG/sprites/boss/` | Sprite kedua boss |
 | `public/assets/fx/boss-bolt.png` | `.../top-down-boss/PNG/sprites/bolt/` | Proyektil boss |
 | `public/assets/fx/boss-rays.png` | `.../top-down-boss/PNG/sprites/rays/` | Beam boss |
