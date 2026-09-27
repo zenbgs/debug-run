@@ -98,8 +98,8 @@ ke-4 berarti dua kelas memakai sprite identik, yang membingungkan saat bermain.
 | Kelas | Sprite | HP | Serangan dasar | Ciri |
 |---|---|---|---|---|
 | **Warrior** | Guy | 130 | melee, damage x1,2 | paling tebal, dorongan terkuat |
-| **Archer** | PirateGirl | 85 | **panah jarak jauh** | tergesit, dash 20% lebih sering |
-| **Mage** | Blond_kid | 75 | melee, damage x0,65 | skill 2x lebih sering, damage skill x1,9 |
+| **Archer** | PirateGirl | 85 | **panah jarak jauh** (190 px) | tergesit, dash 20% lebih sering |
+| **Mage** | Blond_kid | 75 | **bola api jarak pendek** (95 px) | skill 2x lebih sering, damage skill x1,9 |
 
 ⚠️ **Pengali damage kelas dipisah antara serangan dasar dan skill.** `damageMultiplier`
 hanya untuk pukulan biasa; skill memakai `skillDamageMultiplier`. Kalau keduanya
@@ -122,20 +122,27 @@ tombol `K` (atau klik kanan), slot 2 di `L`/`Q`.
 Skill punya dua jenis eksekusi: `hitbox` memakai jalur `CombatSystem.resolveAttack`
 yang sama dengan combo, sedangkan `volley` menembakkan panah lewat jalur proyektil.
 
-### 5.2.2b FX serangan dasar per kelas
+### 5.2.2b Serangan dasar per kelas
 
-Kelas boleh mengganti FX serangan dasarnya lewat `attackFx` di `data/classes.ts`,
-satu entri per langkah combo. Tanpa ini semua kelas melee memakai sprite slash yang
-sama dan pukulan Warrior tidak bisa dibedakan dari Mage.
+Ketiga kelas menyerang dengan cara yang berbeda, bukan sekadar angka berbeda:
 
-| Kelas | Pukul 1 | Pukul 2 | Finisher |
-|---|---|---|---|
-| Warrior | `slash-horizontal` | `slash-upward` | `slash-circular` |
-| Mage | `arcane-crescent` | `arcane-crescent` (lebih besar) | `arcane-blast` |
-| Archer | — (FX-nya adalah panah itu sendiri) | — | — |
+| Kelas | Cara | FX |
+|---|---|---|
+| Warrior | ayunan melee | `slash-horizontal`, `slash-upward`, `slash-circular` |
+| Archer | proyektil panah, jangkauan 190 px, cepat (300 px/d) | panah itu sendiri |
+| Mage | proyektil bola api, jangkauan **95 px**, lambat (210 px/d) | kilatan `arcane-crescent`/`arcane-blast` + bola api |
 
-Tiap entri punya `rotates`: bentuk memanjang (sabit) diputar mengikuti arah hadap,
-ledakan radial tidak.
+**Proyektil didefinisikan per kelas** lewat `projectile` di `data/classes.ts` (texture,
+kecepatan, jangkauan, ukuran body, skala, beranimasi atau tidak). Jangkauan Mage sengaja
+dibuat pendek supaya ia tetap harus mendekat — kalau disamakan dengan Archer, tidak ada
+alasan memainkan Archer.
+
+`attackFx` adalah **kilatan merapal**, bukan pengganti proyektil: untuk kelas jarak jauh
+ia tampil berbarengan dengan proyektilnya. Tiap entri punya `rotates` — bentuk memanjang
+diputar mengikuti arah hadap, ledakan radial tidak.
+
+⚠️ Offset body proyektil **wajib** diset eksplisit; `setSize()` tidak memusatkannya
+(lihat §5.2.4).
 
 ### 5.2.3 Dash
 

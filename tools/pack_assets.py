@@ -39,6 +39,7 @@ JOBS = [
     ("fx-hit", "fx", os.path.join(FX, "Hit", "Sprites", "*.png")),
     ("fx-electro-shock", "fx", os.path.join(GROTTO, "electro-shock", "*.png")),
     ("fx-energy-field", "fx", os.path.join(GROTTO, "energy-field", "*.png")),
+    ("player-fireball", "sprites", os.path.join(GROTTO, "fire-ball", "*.png")),
     ("fx-arcane-crescent", "fx", os.path.join(FX, "Warped shooting fx", "crossed", "sprites", "*.png")),
     ("fx-arcane-blast", "fx", os.path.join(FX, "Warped shooting fx", "charged", "sprites", "*.png")),
     ("player-arrow", "sprites", os.path.join(SRC, "Gothicvania", "Misc", "Dagger", "*.png")),

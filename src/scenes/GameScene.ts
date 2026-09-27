@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { isBossType, SPAWNABLE_BY_ID } from '../data/bosses';
+import type { ProjectileConfig } from '../data/classes';
 import { CAMERA, FONT_FAMILY, TILE } from '../data/config';
 import type { EnemyType } from '../data/enemies';
 import { EMPTY } from '../data/tiles';
-import { SHEETS } from '../data/frames';
+import { ALL_SHEETS, SHEETS } from '../data/frames';
 import { SHOCK_FX_STEPS, type VolleyConfig } from '../data/skills';
 import { STORY_BOSS, STORY_VICTORY } from '../data/story';
 import type { Upgrade } from '../data/upgrades';
@@ -45,6 +46,14 @@ const FX_ANGLE: Record<Facing, number> = {
   up: -90,
   down: 90,
 };
+
+/** Pencarian cepat spesifikasi sheet dari key-nya, untuk menghitung offset body. */
+const SHEET_BY_KEY = new Map(ALL_SHEETS.map((s) => [s.key, s]));
+
+/** Nama animasi proyektil beranimasi. */
+function projectileAnimKey(texture: string): string {
+  return `${texture}-fly`;
+}
 
 /** Radius tumbukan panah, dipakai deteksi manual di `updateArrows`. */
 const ARROW_RADIUS = 5;
@@ -110,6 +119,7 @@ export class GameScene extends Phaser.Scene {
 
     createParticleTexture(this);
     createFxAnimations(this);
+    this.createProjectileAnimations();
     Player.createAnimations(this);
     Enemy.createAnimations(this);
 
@@ -164,6 +174,19 @@ export class GameScene extends Phaser.Scene {
         onAllWavesCleared: () => this.onVictory(),
       }
     );
+  }
+
+  /** Animasi untuk proyektil yang bergerak (mis. bola api berkedip). */
+  private createProjectileAnimations(): void {
+    const sheet = SHEETS.PLAYER_FIREBALL;
+    const key = projectileAnimKey(sheet.key);
+    if (this.anims.exists(key)) return;
+    this.anims.create({
+      key,
+      frames: this.anims.generateFrameNumbers(sheet.key, { start: 0, end: sheet.frames - 1 }),
+      frameRate: 14,
+      repeat: -1,
+    });
   }
 
   /** Membuat Enemy biasa atau Boss, lengkap dengan konteks serangannya. */
@@ -313,20 +336,20 @@ export class GameScene extends Phaser.Scene {
     const dirX = facing === 'right' ? 1 : facing === 'left' ? -1 : 0;
     const dirY = facing === 'down' ? 1 : facing === 'up' ? -1 : 0;
 
+    const kelasFx = !skillId ? this.player.playerClass.attackFx?.[payload.comboIndex ?? 0] : undefined;
     const volley = payload.skill?.kind === 'volley';
     const melee = !volley && (!payload.ranged || skillId !== undefined);
-    if (!melee) {
-      // Kelas jarak jauh tidak punya ayunan; FX-nya adalah panah itu sendiri.
-    } else if (!skillId && this.player.playerClass.attackFx) {
-      // FX serangan dasar milik kelas menggantikan slash bawaan combo.
-      const fx = this.player.playerClass.attackFx[payload.comboIndex ?? 0];
-      if (fx) {
-        playFx(this, fx.key, x + dirX * fx.offset, y + dirY * fx.offset, {
-          scale: fx.scale,
-          angle: fx.rotates ? FX_ANGLE[facing] : 0,
-          flipX: fx.rotates && facing === 'left',
-        });
-      }
+
+    if (kelasFx) {
+      // FX serangan dasar milik kelas. Untuk kelas jarak jauh ini adalah kilatan
+      // merapal yang tampil berbarengan dengan proyektilnya, bukan penggantinya.
+      playFx(this, kelasFx.key, x + dirX * kelasFx.offset, y + dirY * kelasFx.offset, {
+        scale: kelasFx.scale,
+        angle: kelasFx.rotates ? FX_ANGLE[facing] : 0,
+        flipX: kelasFx.rotates && facing === 'left',
+      });
+    } else if (!melee) {
+      // Kelas jarak jauh tanpa `attackFx`: visualnya adalah proyektil itu sendiri.
     } else if (skillId === 'shock' && step.shape.type === 'rect') {
       // Sprite petir menyembur vertikal dari satu titik, bukan sinar mendatar.
       // Jadi FX-nya ditaruh beberapa kali di sepanjang garis serangan.
@@ -402,7 +425,9 @@ export class GameScene extends Phaser.Scene {
 
     for (let i = 0; i < config.count; i++) {
       const offset = config.count === 1 ? 0 : (i / (config.count - 1) - 0.5) * config.spread;
-      this.spawnArrow(payload.x, payload.y, dasar + offset, {
+      const proyektil = this.player.playerClass.projectile;
+      if (!proyektil) return;
+      this.spawnProjectile(payload.x, payload.y, dasar + offset, proyektil, {
         speed: config.speed,
         range: config.range,
         damage,
@@ -413,33 +438,41 @@ export class GameScene extends Phaser.Scene {
     audio.play('upgrade');
   }
 
-  /** Membuat satu panah. Dipakai serangan dasar Archer maupun skill volley. */
-  private spawnArrow(
+  /**
+   * Membuat satu proyektil pemain. Dipakai serangan dasar kelas jarak jauh
+   * (panah Archer, bola api Mage) maupun skill `volley`.
+   */
+  private spawnProjectile(
     x: number,
     y: number,
     sudut: number,
+    sumber: ProjectileConfig,
     opsi: { speed: number; range: number; damage: number; pierce: boolean; stunMs?: number }
   ): void {
-    const arrow = this.arrows.create(x, y, SHEETS.PLAYER_ARROW.key) as Phaser.Physics.Arcade.Sprite;
-    arrow.setDepth(DEPTH.PLAYER - 1);
-    arrow.setRotation(sudut);
-    arrow.setData('damage', opsi.damage);
-    arrow.setData('pierce', opsi.pierce);
-    arrow.setData('stunMs', opsi.stunMs ?? 0);
-    arrow.setData('hitIds', new Set<Enemy>());
-    arrow.setData('expiresAt', this.time.now + (opsi.range / opsi.speed) * 1000);
+    const sheet = SHEET_BY_KEY.get(sumber.texture);
+    if (!sheet) return;
 
-    const body = arrow.body as Phaser.Physics.Arcade.Body;
+    const peluru = this.arrows.create(x, y, sumber.texture) as Phaser.Physics.Arcade.Sprite;
+    peluru.setDepth(DEPTH.PLAYER - 1);
+    peluru.setRotation(sudut);
+    peluru.setScale(sumber.scale);
+    peluru.setData('damage', opsi.damage);
+    peluru.setData('pierce', opsi.pierce);
+    peluru.setData('stunMs', opsi.stunMs ?? 0);
+    peluru.setData('hitIds', new Set<Enemy>());
+    peluru.setData('expiresAt', this.time.now + (opsi.range / opsi.speed) * 1000);
+
+    if (sumber.animated) peluru.play(projectileAnimKey(sumber.texture));
+
+    const body = peluru.body as Phaser.Physics.Arcade.Body;
     // Offset WAJIB diset eksplisit. `setSize()` seharusnya memusatkan body, tapi
-    // pada sprite panah ini tidak terjadi: body tertinggal di pojok kiri-atas
-    // frame 32x32, jauh dari gambar panahnya, sehingga panah menembus musuh
-    // tanpa pernah mengenai. Terukur: sprite di (433,303), body di (417,287).
-    const ARROW_BODY_W = 10;
-    const ARROW_BODY_H = 6;
-    body.setSize(ARROW_BODY_W, ARROW_BODY_H);
+    // pada sprite proyektil ini tidak terjadi: body tertinggal di pojok kiri-atas
+    // frame, jauh dari gambarnya, sehingga proyektil menembus musuh tanpa pernah
+    // mengenai. Terukur pada panah: sprite di (433,303), body di (417,287).
+    body.setSize(sumber.bodyWidth, sumber.bodyHeight);
     body.setOffset(
-      (SHEETS.PLAYER_ARROW.frameWidth - ARROW_BODY_W) / 2,
-      (SHEETS.PLAYER_ARROW.frameHeight - ARROW_BODY_H) / 2
+      (sheet.frameWidth - sumber.bodyWidth) / 2,
+      (sheet.frameHeight - sumber.bodyHeight) / 2
     );
     body.setAllowGravity(false);
     body.setVelocity(Math.cos(sudut) * opsi.speed, Math.sin(sudut) * opsi.speed);
@@ -449,7 +482,9 @@ export class GameScene extends Phaser.Scene {
   private fireArrows(payload: PlayerAttackPayload): void {
     const { step, x, y, facing } = payload;
     const config = this.player.playerClass;
-    const speed = config.projectileSpeed ?? 280;
+    const proyektil = config.projectile;
+    if (!proyektil) return;
+
     const jumlah = payload.projectileCount ?? 1;
     const dasar = GameScene.facingAngle(facing);
     const sebar = 0.22;
@@ -458,9 +493,9 @@ export class GameScene extends Phaser.Scene {
 
     for (let i = 0; i < jumlah; i++) {
       const sudut = dasar + (i - (jumlah - 1) / 2) * sebar;
-      this.spawnArrow(x, y, sudut, {
-        speed,
-        range: config.projectileRange ?? 180,
+      this.spawnProjectile(x, y, sudut, proyektil, {
+        speed: proyektil.speed,
+        range: proyektil.range,
         damage,
         pierce: false,
       });

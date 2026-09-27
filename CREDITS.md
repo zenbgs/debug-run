@@ -44,6 +44,7 @@ penulisnya. Dukung karyanya di <https://ansimuz.itch.io/>.
 | `public/assets/fx/fx-arcane-crescent.png` | `Assets/Explosions and Magic/Warped shooting fx/crossed/` | FX pukulan Mage |
 | `public/assets/fx/fx-arcane-blast.png` | `.../Warped shooting fx/charged/` | FX finisher Mage |
 | `public/assets/sprites/player-arrow.png` | `Assets/Gothicvania/Misc/Dagger/` | Panah Archer |
+| `public/assets/sprites/player-fireball.png` | `.../Grotto-escape-2-FX/sprites/fire-ball/` | Bola api Mage |
 | `public/assets/sprites/boss-core.png` | `Assets/Warped/Characters/top-down-boss/PNG/sprites/boss/` | Sprite kedua boss |
 | `public/assets/fx/boss-bolt.png` | `.../top-down-boss/PNG/sprites/bolt/` | Proyektil boss |
 | `public/assets/fx/boss-rays.png` | `.../top-down-boss/PNG/sprites/rays/` | Beam boss |

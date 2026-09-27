@@ -45,12 +45,12 @@ Tidak butuh backend, tidak butuh konfigurasi. Cukup buka di browser desktop.
 - **7 tipe musuh** dengan 3 perilaku berbeda: mengejar, zigzag, dan menerjang
 - **Combo 3 pukulan** dengan hitstop, knockback, dan screen shake
 - **3 kelas karakter** dengan cara main berbeda, dipilih sebelum mulai:
-  Warrior (tebal, melee, dorongan terkuat), Archer (panah jarak jauh, tergesit),
-  Mage (rapuh, tapi skill dua kali lebih sering dan jauh lebih keras)
+  Warrior (tebal, ayunan melee), Archer (panah jarak jauh 190 px, tergesit),
+  Mage (bola api jarak pendek 95 px, skill dua kali lebih sering dan jauh lebih keras)
 - **6 skill — dua milik tiap kelas**, tidak ada yang dipakai bersama:
   Cleave/Warcry, Volley/Pin Shot, Purge/Shock
-- **Efek serangan dasar berbeda tiap kelas** — Warrior mengayun baja, Mage melepas
-  sabit arkana dan ledakan sihir, Archer menembak panah
+- **Cara menyerang berbeda tiap kelas**, bukan sekadar angka: Warrior mengayun baja,
+  Archer melesatkan panah jauh, Mage melempar bola api jarak pendek
 - **Cerita bergaya RPG** dengan kotak dialog berefek ketik di pembuka,
   kedua wave boss, dan penutup
 - **Dash** 160 px dengan kebal penuh dan bayangan sisa, pendinginan 1,2 detik

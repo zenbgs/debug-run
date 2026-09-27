@@ -41,6 +41,13 @@ export const SHEETS = {
     frameHeight: 32,
     frames: 1,
   },
+  PLAYER_FIREBALL: {
+    key: 'player-fireball',
+    path: 'assets/sprites/player-fireball.png',
+    frameWidth: 52,
+    frameHeight: 29,
+    frames: 3,
+  },
   ENEMY_BEETLE: {
     key: 'enemy-beetle',
     path: 'assets/sprites/enemy-beetle.png',

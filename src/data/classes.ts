@@ -18,6 +18,19 @@ import type { SkillId } from './skills';
 /** Cara serangan dasar bekerja. Ini pembeda mekanik utama antar kelas. */
 export type AttackStyle = 'melee' | 'ranged';
 
+/** Proyektil serangan dasar milik kelas jarak jauh. */
+export type ProjectileConfig = {
+  texture: string;
+  speed: number;
+  /** Jarak tempuh sebelum hilang, dalam piksel. */
+  range: number;
+  bodyWidth: number;
+  bodyHeight: number;
+  scale: number;
+  /** Sprite beranimasi (bola api berkedip) atau diam (panah). */
+  animated: boolean;
+};
+
 /** Satu FX serangan dasar. */
 export type AttackFx = {
   key: string;
@@ -53,10 +66,11 @@ export type PlayerClass = {
   /** Pengali pendinginan dash. */
   dashCooldownMultiplier: number;
 
-  /** Hanya dipakai `attackStyle: 'ranged'`. */
-  projectileSpeed?: number;
-  /** Jangkauan panah sebelum hilang, dalam piksel. */
-  projectileRange?: number;
+  /**
+   * Wajib untuk `attackStyle: 'ranged'`. Tiap kelas jarak jauh punya proyektil
+   * sendiri — Archer melesatkan panah jauh, Mage melempar bola api jarak pendek.
+   */
+  projectile?: ProjectileConfig;
 
   /** Dua skill milik kelas ini: slot 1 (tombol K) dan slot 2 (tombol L/Q). */
   skills: readonly [SkillId, SkillId];
@@ -109,8 +123,15 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
     recoveryMultiplier: 0.85,
     skillCooldownMultiplier: 1,
     dashCooldownMultiplier: 0.8,
-    projectileSpeed: 300,
-    projectileRange: 190,
+    projectile: {
+      texture: SHEETS.PLAYER_ARROW.key,
+      speed: 300,
+      range: 190,
+      bodyWidth: 10,
+      bodyHeight: 6,
+      scale: 1,
+      animated: false,
+    },
     skills: ['volley', 'pinshot'],
     highlights: ['Serang jarak jauh', 'Tergesit, dash cepat', 'HP 85 (rapuh)'],
   },
@@ -119,25 +140,37 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
     name: 'Mage',
     title: 'Pembaca Mantra',
     description:
-      'Pukulannya lemah, tapi Purge dan Shock menyala dua kali lebih sering\ndan jauh lebih keras. Bermainlah dengan skill, bukan dengan tongkat.',
+      'Melempar bola api jarak pendek, jadi tetap harus mendekat. ' +
+      'Purge dan Shock menyala dua kali lebih sering dan jauh lebih keras.',
     texture: SHEETS.PLAYER_BLONDKID.key,
-    attackStyle: 'melee',
+    attackStyle: 'ranged',
     maxHp: 75,
     speedMultiplier: 1.05,
-    damageMultiplier: 0.65,
+    damageMultiplier: 0.8,
+    projectile: {
+      texture: SHEETS.PLAYER_FIREBALL.key,
+      // Sengaja jauh lebih pendek dan lebih lambat dari panah Archer: Mage tetap
+      // harus mendekat, bukan menembak dari seberang arena.
+      speed: 210,
+      range: 95,
+      bodyWidth: 14,
+      bodyHeight: 10,
+      scale: 0.85,
+      animated: true,
+    },
     skillDamageMultiplier: 1.9,
     recoveryMultiplier: 1.1,
     skillCooldownMultiplier: 0.5,
     dashCooldownMultiplier: 1,
     skills: ['purge', 'shock'],
-    // Mage tidak mengayun senjata: dua pukulan pertama melepas sabit arkana,
-    // finisher-nya ledakan sihir radial.
+    // Mage tidak mengayun senjata sama sekali.
+    // Kilatan merapal di badan pemain; bola api yang melesat adalah proyektilnya.
     attackFx: [
-      { key: SHEETS.FX_ARCANE_CRESCENT.key, scale: 1.1, offset: 20, rotates: true },
-      { key: SHEETS.FX_ARCANE_CRESCENT.key, scale: 1.3, offset: 20, rotates: true },
-      { key: SHEETS.FX_ARCANE_BLAST.key, scale: 1.2, offset: 0, rotates: false },
+      { key: SHEETS.FX_ARCANE_CRESCENT.key, scale: 0.9, offset: 12, rotates: true },
+      { key: SHEETS.FX_ARCANE_CRESCENT.key, scale: 1.1, offset: 12, rotates: true },
+      { key: SHEETS.FX_ARCANE_BLAST.key, scale: 0.9, offset: 6, rotates: true },
     ],
-    highlights: ['Skill 2x lebih sering', 'Damage skill +90%', 'HP 75 (terapuh)'],
+    highlights: ['Bola api jarak pendek', 'Skill 2x lebih sering', 'HP 75 (terapuh)'],
   },
 ];
 
