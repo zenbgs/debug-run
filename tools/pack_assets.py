@@ -63,6 +63,15 @@ JOBS = [
         "sprites",
         os.path.join(SRC, "Warped", "Characters", "top-down-boss", "PNG", "sprites", "boss", "*.png"),
     ),
+    # Boss wave 5. Satu PNG statis, bukan animasi — di M5 folder `Mechanic` ditolak
+    # karena sprite-nya 3-4x lebih besar dari musuh biasa, tapi untuk BOSS justru itu
+    # yang dicari. Bayangannya sudah menyatu di sprite dan sudut pandangnya
+    # depan-atas, sama seperti sprite top-down lain yang dipakai game ini.
+    (
+        "boss-sentinel",
+        "sprites",
+        os.path.join(SRC, "TinyRPG", "Characters", "Battle Sprites", "Mechanic", "Sentinel.png"),
+    ),
     (
         "boss-bolt",
         "fx",

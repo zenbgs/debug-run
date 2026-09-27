@@ -27,12 +27,29 @@ export class DialogueBox {
 
   private readonly handleAdvance = () => this.advance();
 
+  private bossPortraitScale: number;
+
   constructor(
     private readonly scene: Phaser.Scene,
     /** Texture wajah pemain — berbeda per kelas. */
     private readonly playerTexture: string,
-    private readonly bossTexture: string
-  ) {}
+    private bossTexture: string,
+    bossPortraitScale = 0.22
+  ) {
+    this.bossPortraitScale = bossPortraitScale;
+  }
+
+  /**
+   * Ganti wajah boss sebelum memutar dialognya.
+   *
+   * Skalanya ikut diganti, bukan konstanta: frame kedua boss berbeda jauh
+   * (192x144 vs 124x110), jadi satu angka tetap akan membuat salah satunya
+   * meluber keluar bingkai.
+   */
+  setBoss(texture: string, portraitScale: number): void {
+    this.bossTexture = texture;
+    this.bossPortraitScale = portraitScale;
+  }
 
   get isOpen(): boolean {
     return this.container !== undefined;
@@ -121,7 +138,7 @@ export class DialogueBox {
         0
       );
       // Sprite boss jauh lebih besar dari sprite pemain, jadi skalanya beda.
-      this.portrait.setScale(line.portrait === 'boss' ? 0.22 : 1.3);
+      this.portrait.setScale(line.portrait === 'boss' ? this.bossPortraitScale : 1.3);
       this.portrait.setVisible(true);
     } else {
       this.portrait?.setVisible(false);

@@ -81,6 +81,60 @@ describe('integritas tipe musuh', () => {
   });
 });
 
+describe('boss harus terasa berbeda satu sama lain', () => {
+  // Keluhan nyata saat memainkannya: "boss wave 5 dan 10 kelihatan sama".
+  // Dulu memang benar — keduanya memakai satu sprite. Tes ini menjaga supaya
+  // pembedanya tidak diam-diam hilang lagi.
+  it('tiap boss memakai sprite sendiri', () => {
+    const textures = BOSS_TYPES.map((b) => b.texture);
+    expect(new Set(textures).size, `sprite boss dipakai ulang: ${textures}`).toBe(
+      textures.length
+    );
+  });
+
+  it('tiap boss punya susunan pola serangan sendiri', () => {
+    const urutan = BOSS_TYPES.map((b) => b.patterns.join(','));
+    expect(new Set(urutan).size).toBe(urutan.length);
+  });
+
+  it('boss yang tidak pernah memakai beam tidak menyimpan damage beam yang menyesatkan', () => {
+    for (const boss of BOSS_TYPES) {
+      if (boss.patterns.includes('beam')) {
+        expect(boss.beamDamage, boss.id).toBeGreaterThan(0);
+      } else {
+        expect(boss.beamDamage, `${boss.id} punya beamDamage tapi tak pernah pakai beam`).toBe(0);
+      }
+    }
+  });
+
+  it('boss memanggil tipe musuh yang benar-benar ada', () => {
+    for (const boss of BOSS_TYPES) {
+      for (const id of boss.summonTypeIds) {
+        expect(SPAWNABLE_BY_ID.has(id), `${boss.id} memanggil "${id}"`).toBe(true);
+        // Boss memanggil boss lain akan membuat wave mustahil selesai.
+        expect(isBossType(SPAWNABLE_BY_ID.get(id)!), `${boss.id} memanggil boss`).toBe(false);
+      }
+    }
+  });
+
+  it('skala wajah boss masuk akal untuk ukuran frame-nya', () => {
+    for (const boss of BOSS_TYPES) {
+      const sheet = ALL_SHEETS.find((s) => s.key === boss.texture)!;
+      const lebarTampil = sheet.frameWidth * boss.portraitScale;
+      // Bingkai wajah di kotak dialog kira-kira 44 px; di bawah 20 px tidak terbaca.
+      expect(lebarTampil, `${boss.id} -> ${lebarTampil.toFixed(1)} px`).toBeGreaterThan(20);
+      expect(lebarTampil, `${boss.id} -> ${lebarTampil.toFixed(1)} px`).toBeLessThan(48);
+    }
+  });
+
+  it('boss satu-frame tidak diminta memutar animasi idle', () => {
+    for (const boss of BOSS_TYPES) {
+      const sheet = ALL_SHEETS.find((s) => s.key === boss.texture)!;
+      expect(boss.frames, boss.id).toBe(sheet.frames);
+    }
+  });
+});
+
 describe('integritas kelas dan skill', () => {
   it('tiap kelas menyebut skill yang ada, dan cukup untuk jumlah hotkey', () => {
     for (const c of PLAYER_CLASSES) {

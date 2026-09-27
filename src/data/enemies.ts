@@ -29,6 +29,15 @@ export type EnemyType = {
   behavior: EnemyBehavior;
   bodyWidth: number;
   bodyHeight: number;
+  /**
+   * Geser hitbox ke atas (negatif) atau ke bawah, dalam piksel sprite sebelum
+   * diskalakan. Default 0 = hitbox di tengah frame.
+   *
+   * Perlu untuk sprite yang massanya tidak di tengah kanvas — mis. Sentinel
+   * punya bayangan dan kaki yang memakan sepertiga bawah frame, jadi hitbox yang
+   * dipusatkan otomatis akan menggantung di bayangannya, bukan di badannya.
+   */
+  bodyOffsetY?: number;
   idleFrameRate: number;
   /** Poin yang didapat saat musuh ini dibasmi. */
   score: number;

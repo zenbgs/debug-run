@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { isBossType, SPAWNABLE_BY_ID } from '../data/bosses';
+import { isBossType, SPAWNABLE_BY_ID, type BossType } from '../data/bosses';
 import type { ProjectileConfig } from '../data/classes';
 import { CAMERA, FONT_FAMILY, TILE } from '../data/config';
 import type { EnemyType } from '../data/enemies';
@@ -39,6 +39,19 @@ const DEPTH = {
   PLAYER: 10,
   DEBUG: 99,
   HUD: 100,
+} as const;
+
+/**
+ * Bar HP boss, diukur dari tepi BAWAH layar.
+ *
+ * Dulu bar ini di atas (y=31) dengan namanya di y=22 — dan keduanya menimpa baris
+ * kedua teks HUD, yang membentang y=14 sampai y=30. Nama boss jadi tertumpuk
+ * "sisa N / skor N" tepat ketika boss muncul. Di bawah tidak ada yang ditabrak:
+ * kotak dialog memang di sana, tapi cerita boss selesai sebelum boss keluar.
+ */
+const BOSS_BAR = {
+  BOTTOM_MARGIN: 14,
+  LABEL_MARGIN: 24,
 } as const;
 
 /** Rotasi FX slash mengikuti arah hadap. Sprite aslinya digambar menghadap kanan. */
@@ -243,7 +256,7 @@ export class GameScene extends Phaser.Scene {
     this.bossLabel?.destroy();
     this.bossBar = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.HUD);
     this.bossLabel = this.add
-      .text(this.scale.width / 2, 22, name, {
+      .text(this.scale.width / 2, this.scale.height - BOSS_BAR.LABEL_MARGIN, name, {
         fontFamily: FONT_FAMILY,
         fontSize: '8px',
         color: '#ff8a7a',
@@ -273,7 +286,7 @@ export class GameScene extends Phaser.Scene {
     const width = 180;
     const height = 5;
     const x = (this.scale.width - width) / 2;
-    const y = 31;
+    const y = this.scale.height - BOSS_BAR.BOTTOM_MARGIN;
     const ratio = this.activeBoss.healthRatio;
 
     this.bossBar.clear();
@@ -403,6 +416,13 @@ export class GameScene extends Phaser.Scene {
     // Cerita boss diputar sekali di awal wave-nya, sebelum musuh keluar.
     const beat = STORY_BOSS[wave.number];
     if (wave.isBossWave && beat && !this.bossStoryShown.has(wave.number)) {
+      // Wajah di kotak dialog diambil dari boss wave ini, bukan konstanta —
+      // tiap wave boss memakai sprite yang berbeda.
+      const bossType = wave.entries
+        .map((entry) => SPAWNABLE_BY_ID.get(entry.typeId))
+        .find((type): type is BossType => type !== undefined && isBossType(type));
+      if (bossType) this.dialogue.setBoss(bossType.texture, bossType.portraitScale);
+
       this.bossStoryShown.add(wave.number);
       this.state = 'dialog';
       this.physics.world.pause();

@@ -76,6 +76,14 @@ export const SHEETS = {
     frameHeight: 144,
     frames: 5,
   },
+  /** Satu frame saja — Boss menggerakkannya lewat tween goyang, bukan animasi. */
+  BOSS_SENTINEL: {
+    key: 'boss-sentinel',
+    path: 'assets/sprites/boss-sentinel.png',
+    frameWidth: 124,
+    frameHeight: 110,
+    frames: 1,
+  },
   FX_BOSS_BOLT: {
     key: 'boss-bolt',
     path: 'assets/fx/boss-bolt.png',

@@ -6,6 +6,9 @@ import { Enemy } from './Enemy';
  * Konteks yang disediakan GameScene: boss tidak tahu apa-apa soal scene,
  * ia hanya memanggil callback ini.
  */
+/** Warna penanda fase 2. Terbaca di kedua sprite boss: teal terang dan merah gelap. */
+const PHASE2_TINT = 0xff6b6b;
+
 export type BossContext = {
   fireBolt: (x: number, y: number, angle: number, speed: number, damage: number) => void;
   fireBeam: (x: number, y: number, angle: number, damage: number) => void;
@@ -27,6 +30,7 @@ export class Boss extends Enemy {
   private phase = 1;
   private chargeRemaining = 0;
   private chargeDirection = new Phaser.Math.Vector2(0, 0);
+  private sway?: Phaser.Tweens.Tween;
 
   constructor(
     scene: Phaser.Scene,
@@ -39,6 +43,33 @@ export class Boss extends Enemy {
     this.bossConfig = type;
     this.patternTimer = type.patternIntervalMs;
     this.setDepth(9);
+
+    if (type.frames < 2) this.startIdleSway();
+  }
+
+  /**
+   * Goyangan untuk sprite boss yang hanya punya satu frame.
+   *
+   * Tanpa ini Sentinel tampak seperti stiker yang ditempel di tengah pertarungan,
+   * padahal boss lain bernapas. Yang digoyang adalah **sudut**, bukan posisi atau
+   * skala: badan Arcade tidak ikut berputar, jadi hitbox sama sekali tidak
+   * terpengaruh — kalau posisi yang digeser, ia akan berkelahi dengan fisika.
+   */
+  private startIdleSway(): void {
+    this.sway = this.scene.tweens.add({
+      targets: this,
+      angle: { from: -3.5, to: 3.5 },
+      duration: 950,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.InOut',
+    });
+    this.once(Phaser.GameObjects.Events.DESTROY, () => this.sway?.remove());
+  }
+
+  /** Fase 2 memerah; tanpa override ini warnanya hilang tiap kali boss kena pukul. */
+  protected override baseTint(): number | undefined {
+    return this.phase === 2 ? PHASE2_TINT : super.baseTint();
   }
 
   get currentPhase(): number {
@@ -87,9 +118,10 @@ export class Boss extends Enemy {
     if (this.healthRatio > this.bossConfig.phase2At) return;
 
     this.phase = 2;
-    // Penanda visual fase 2: memerah dan sedikit membesar.
-    this.setTint(0xff6b6b);
+    // Penanda visual fase 2: memerah, sedikit membesar, dan goyangannya memburu.
+    this.setTint(PHASE2_TINT);
     this.setScale(this.bossConfig.scale * 1.08);
+    if (this.sway) this.sway.timeScale = 1.9;
     this.scene.cameras.main.shake(260, 0.008);
   }
 

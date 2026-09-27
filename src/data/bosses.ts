@@ -1,13 +1,18 @@
 /**
  * Definisi boss. (SPEC.md §6)
  *
- * ⚠️ Legacy Collection hanya punya **satu** sprite boss tampak-atas
- * (`Warped/Characters/top-down-boss`, 186x123 px). Rencana awal memakai
- * `Monster Pack Files` untuk boss wave 5, tapi seluruh isinya sprite layar-battle
- * RPG yang digambar dari samping — sama seperti roster musuh yang sudah gugur di M2.
+ * Kedua boss memakai **sprite yang berbeda**, bukan sekadar beda angka.
  *
- * Jadi kedua boss memakai sprite yang sama, dibedakan lewat tint, skala, HP, dan
- * susunan pola serangan. Pendekatan yang sama dipakai untuk 7 tipe musuh di M3.
+ * Awalnya keduanya memakai `top-down-boss` yang sama karena itu satu-satunya
+ * sprite boss tampak-atas yang jelas, dan `Monster Pack Files` seluruhnya sprite
+ * layar-battle RPG dari samping. Yang terlewat: folder `Mechanic` ditolak di M2
+ * dengan alasan sprite-nya 3-4x lebih besar dari musuh biasa — alasan yang benar
+ * untuk musuh biasa, tapi justru salah untuk boss. `Sentinel` digambar dari
+ * depan-atas dengan bayangan menyatu, persis konvensi sprite top-down lainnya.
+ *
+ * Hasilnya dua boss yang berbeda siluet, warna, DAN cara mainnya:
+ *  - wave 5  Stack Overflow — mekanik laba-laba teal, gesit, memanggil salinan
+ *  - wave 10 Null Pointer   — inti merah gelap, lamban, menguasai ruang dari jauh
  */
 
 import { ENEMY_TYPES, type EnemyType } from './enemies';
@@ -19,6 +24,12 @@ export type BossType = EnemyType & {
   isBoss: true;
   /** Nama yang tampil di bar HP boss. */
   bossName: string;
+  /**
+   * Skala wajah boss di kotak dialog. Per boss, karena ukuran frame tiap sprite
+   * boss berbeda jauh (192x144 vs 124x110) — satu angka tetap membuat yang satu
+   * meluber keluar bingkai dan yang lain jadi titik kecil.
+   */
+  portraitScale: number;
   /** Urutan pola yang diputar berulang. */
   patterns: readonly BossPattern[];
   /** Jeda antar pola, ms. */
@@ -40,6 +51,7 @@ export type BossType = EnemyType & {
 };
 
 const CORE = SHEETS.BOSS_CORE;
+const SENTINEL = SHEETS.BOSS_SENTINEL;
 
 export const BOSS_TYPES: readonly BossType[] = [
   {
@@ -47,35 +59,41 @@ export const BOSS_TYPES: readonly BossType[] = [
     id: 'boss-stack-overflow',
     name: 'Stack Overflow',
     bossName: 'STACK OVERFLOW',
-    texture: CORE.key,
-    frames: CORE.frames,
-    // SENGAJA tanpa tint. Tint di Phaser adalah perkalian, dan sprite boss aslinya
-    // sudah merah gelap — tint warna apa pun (hijau, biru) hanya membuatnya jadi
-    // gumpalan gelap yang tidak terbaca. Kedua boss dibedakan lewat ukuran, nama,
-    // dan susunan pola, bukan warna.
-    scale: 0.42,
-    hp: 350,
-    speed: 26,
-    contactDamage: 20,
-    knockbackResist: 0.92,
+    texture: SENTINEL.key,
+    frames: SENTINEL.frames,
+    // Tanpa tint: sprite ini sudah teal terang, kontras penuh dengan inti merah
+    // gelap di wave 10. Justru warna aslinya yang jadi pembedanya.
+    scale: 0.62,
+    hp: 340,
+    // Jauh lebih gesit dari boss terakhir. Ini pembeda utamanya saat dimainkan:
+    // Stack Overflow mengejar dan menyudutkan, Null Pointer menunggu dan menembak.
+    speed: 48,
+    contactDamage: 18,
+    knockbackResist: 0.9,
     behavior: 'chase',
-    bodyWidth: 62,
-    bodyHeight: 44,
+    bodyWidth: 54,
+    bodyHeight: 48,
+    // Sepertiga bawah frame isinya kaki dan bayangan. Tanpa geseran ini, pukulan
+    // yang jelas mengenai badan akan meleset karena hitbox-nya ada di bayangan.
+    bodyOffsetY: -14,
     idleFrameRate: 6,
     score: 400,
     unlockAtSeconds: 0,
+    portraitScale: 0.34,
 
-    patterns: ['spread', 'summon', 'charge'],
-    patternIntervalMs: 2600,
+    // Temanya rekursi: ia memanggil salinan dirinya. Dua kali `summon` per siklus
+    // dan tanpa `beam` sama sekali — beam disimpan sebagai eskalasi untuk wave 10.
+    patterns: ['charge', 'summon', 'spread', 'summon'],
+    patternIntervalMs: 2200,
     phase2At: 0.5,
-    phase2IntervalScale: 0.65,
-    spreadCount: [8, 12],
+    phase2IntervalScale: 0.62,
+    spreadCount: [6, 10],
     boltSpeed: 105,
     boltDamage: 10,
-    beamDamage: 18,
-    summonTypeIds: ['glitchling', 'glitchling-swift'],
+    beamDamage: 0,
+    summonTypeIds: ['glitchling', 'glitchling-swift', 'crawler'],
     summonCount: 3,
-    chargeSpeed: 190,
+    chargeSpeed: 245,
   },
   {
     isBoss: true,
@@ -84,9 +102,12 @@ export const BOSS_TYPES: readonly BossType[] = [
     bossName: 'NULL POINTER',
     texture: CORE.key,
     frames: CORE.frames,
+    // SENGAJA tanpa tint. Tint di Phaser adalah perkalian, dan sprite ini sudah
+    // merah gelap — tint warna apa pun hanya membuatnya jadi gumpalan gelap yang
+    // tidak terbaca. Pembedanya sprite, bukan warna.
     scale: 0.55,
-    hp: 600,
-    speed: 22,
+    hp: 620,
+    speed: 20,
     contactDamage: 25,
     knockbackResist: 0.96,
     behavior: 'chase',
@@ -95,8 +116,11 @@ export const BOSS_TYPES: readonly BossType[] = [
     idleFrameRate: 6,
     score: 900,
     unlockAtSeconds: 0,
+    portraitScale: 0.22,
 
-    patterns: ['spread', 'beam', 'summon', 'charge'],
+    // Penguasa ruang: dua beam per siklus, tembakan menyebar yang rapat, dan
+    // terjangan hanya sebagai hukuman kalau pemain terlalu lama menempel.
+    patterns: ['spread', 'beam', 'summon', 'spread', 'beam', 'charge'],
     patternIntervalMs: 2300,
     phase2At: 0.5,
     phase2IntervalScale: 0.6,
@@ -109,8 +133,6 @@ export const BOSS_TYPES: readonly BossType[] = [
     chargeSpeed: 220,
   },
 ];
-
-export const BOSS_BY_ID = new Map(BOSS_TYPES.map((boss) => [boss.id, boss]));
 
 export function isBossType(type: EnemyType): type is BossType {
   return (type as BossType).isBoss === true;

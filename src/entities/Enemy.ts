@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
+import { BOSS_TYPES } from '../data/bosses';
 import { COMBAT } from '../data/combat';
-import { CHARGER, SHOOTER, ZIGZAG, type EnemyType } from '../data/enemies';
-import { SHEETS } from '../data/frames';
+import { CHARGER, ENEMY_TYPES, SHOOTER, ZIGZAG, type EnemyType } from '../data/enemies';
+import { ALL_SHEETS, SHEETS } from '../data/frames';
 import { audio } from '../systems/Audio';
 import { playFx } from '../systems/Fx';
 import { spawnDeathBurst, spawnHitSparks } from '../systems/Particles';
@@ -65,6 +66,15 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setSize(type.bodyWidth, type.bodyHeight);
+    if (type.bodyOffsetY) {
+      // `setSize` memusatkan hitbox di frame. Offset ditulis ulang secara eksplisit
+      // — pelajaran dari bug panah di M6: mengandalkan offset implisit membuat
+      // hitbox menggantung di sudut frame tanpa terlihat sampai diukur.
+      body.setOffset(
+        (this.width - type.bodyWidth) / 2,
+        (this.height - type.bodyHeight) / 2 + type.bodyOffsetY
+      );
+    }
     body.setCollideWorldBounds(true);
     // Knockback meredam sendiri, bukan meluncur terus.
     body.setDrag(COMBAT.ENEMY_DRAG, COMBAT.ENEMY_DRAG);
@@ -73,17 +83,27 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.lastX = x;
     this.lastY = y;
 
-    this.play(idleAnimKey(type.texture));
+    // Sprite satu frame tidak punya animasi idle; Boss menggoyangnya lewat tween.
+    if (type.frames > 1) this.play(idleAnimKey(type.texture));
   }
 
-  /** Buat animasi idle untuk ketiga spritesheet musuh. Dipanggil sekali per scene. */
+  /**
+   * Buat animasi idle untuk setiap spritesheet yang dipakai musuh atau boss.
+   *
+   * Daftarnya diturunkan dari data, bukan ditulis tangan: versi lama menyebut
+   * empat sheet satu per satu, jadi menambah sprite boss baru diam-diam membuat
+   * `play()` gagal karena animasinya tidak pernah dibuat.
+   */
   static createAnimations(scene: Phaser.Scene): void {
-    const sheets = [SHEETS.ENEMY_BEETLE, SHEETS.ENEMY_CRAWLER, SHEETS.ENEMY_MOTH, SHEETS.BOSS_CORE];
-    for (const sheet of sheets) {
-      const key = idleAnimKey(sheet.key);
-      if (scene.anims.exists(key)) continue;
+    const textures = new Set([...ENEMY_TYPES, ...BOSS_TYPES].map((t) => t.texture));
+    for (const key of textures) {
+      const sheet = ALL_SHEETS.find((s) => s.key === key);
+      if (!sheet || sheet.frames < 2) continue;
+
+      const animKey = idleAnimKey(sheet.key);
+      if (scene.anims.exists(animKey)) continue;
       scene.anims.create({
-        key,
+        key: animKey,
         frames: scene.anims.generateFrameNumbers(sheet.key, { start: 0, end: sheet.frames - 1 }),
         frameRate: 8,
         repeat: -1,
@@ -143,8 +163,19 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     return false;
   }
 
+  /**
+   * Warna yang berlaku saat musuh tidak sedang berkedip kena pukul atau terpaku.
+   *
+   * Dibuat bisa ditimpa karena Boss mengubah warnanya sendiri saat masuk fase 2.
+   * Sebelumnya `flash()` membaca `config.tint` langsung, jadi penanda merah fase 2
+   * hilang permanen begitu boss kena pukul pertama — tepat pada saat penanda itu
+   * paling dibutuhkan.
+   */
+  protected baseTint(): number | undefined {
+    return this.config.tint;
+  }
+
   private flash(): void {
-    const original = this.config.tint;
     this.setTintFill(0xffffff);
     this.flashTimer?.remove();
     this.flashTimer = this.scene.time.delayedCall(COMBAT.HIT_FLASH_MS, () => {
@@ -152,7 +183,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.clearTint();
       // Musuh yang masih terpaku harus tetap memakai warna stun.
       if (this.isStunned) this.setTint(COMBAT.STUN_TINT);
-      else if (original !== undefined) this.setTint(original);
+      else this.restoreTint();
     });
   }
 
@@ -323,10 +354,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  /** Mengembalikan warna asli tipe (atau menghapus tint kalau tipe tak bertint). */
+  /** Mengembalikan warna yang seharusnya berlaku sekarang. */
   private restoreTint(): void {
     this.clearTint();
-    if (this.config.tint !== undefined) this.setTint(this.config.tint);
+    const tint = this.baseTint();
+    if (tint !== undefined) this.setTint(tint);
   }
 
   private moveCharger(

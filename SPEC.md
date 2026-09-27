@@ -205,8 +205,8 @@ diimplementasi di `src/data/enemies.ts` (terverifikasi di M3).
 | 6 | **Spitter** | ngengat | hijau | 28 | 52 | **menjaga jarak & menembak** | 9 (proyektil) | 26 s |
 | 6 | **Charger** | kumbang mesin | oranye | 55 | 210 | incar 0,9 s → terjang 0,42 s → pulih 0,7 s | 18 | 60 s |
 | 7 | **Crawler Berat** | kumbang mesin | ungu | 80 | 32 | kejar, tahan knockback 80% | 16 | 78 s |
-| B1 | **Stack Overflow** (wave 5) | `boss-core`, skala 0.42 | — | 350 | 26 | spread → summon → charge | 20 | M5 |
-| B2 | **Null Pointer** (wave 10) | `boss-core`, skala 0.55 | — | 600 | 22 | spread → beam → summon → charge | 25 | M5 |
+| B1 | **Stack Overflow** (wave 5) | `boss-sentinel`, skala 0.62 | — | 340 | 48 | charge → summon → spread → summon | 18 | M5 |
+| B2 | **Null Pointer** (wave 10) | `boss-core`, skala 0.55 | — | 620 | 20 | spread → beam → summon → spread → beam → charge | 25 | M5 |
 
 \* Kecepatan efektif tipe zigzag **22% lebih tinggi** dari angka ini, karena goyangan
 ditambahkan sebagai vektor tegak lurus. Moth `speed: 88` terukur bergerak 107 px/detik.
@@ -306,26 +306,49 @@ sprite biasa. Kalau pool penuh, angka tertua diambil alih.
 
 ### 6.3 Boss
 
-Kedua boss memakai **sprite yang sama** (`Warped/top-down-boss`, 186x123 px). Rencana awal
-memakai `Monster Pack Files` untuk boss wave 5, tapi seluruh isinya sprite layar-battle RPG
-dari samping — gugur dengan alasan yang sama seperti roster musuh di M2. Pembedanya ukuran,
-HP, dan susunan pola.
+Tiap boss memakai **sprite sendiri**, dan cara mainnya juga berbeda:
 
-⚠️ **Jangan memberi tint warna ke boss.** Tint di Phaser adalah perkalian, dan sprite boss
-sudah merah gelap — tint hijau/biru hanya menghasilkan gumpalan gelap yang tidak terbaca.
-Ini sempat dicoba dan harus dibatalkan.
+| | B1 — Stack Overflow (wave 5) | B2 — Null Pointer (wave 10) |
+|---|---|---|
+| Sprite | `Mechanic/Sentinel`, 124x110, teal | `Warped/top-down-boss`, 192x144, merah gelap |
+| Siluet | mekanik berkaki empat | gumpalan inti organik |
+| Peran | pemburu — mengejar dan menyudutkan | penguasa ruang — menahan dari jauh |
+| Kecepatan | 48 px/s, terjang 245 | 20 px/s, terjang 220 |
+| Pola | `charge → summon → spread → summon` | `spread → beam → summon → spread → beam → charge` |
+| Beam | tidak pernah | dua kali per siklus |
+
+Awalnya keduanya memakai `top-down-boss` yang sama, karena `Monster Pack Files` seluruhnya
+sprite layar-battle RPG dari samping — gugur dengan alasan yang sama seperti roster musuh di
+M2. Yang terlewat: folder `Mechanic` ditolak di M2 karena sprite-nya 3–4x lebih besar dari
+musuh biasa. Alasan itu benar untuk musuh biasa dan **justru salah untuk boss**. `Sentinel`
+digambar dari depan-atas dengan bayangan menyatu, persis konvensi sprite top-down lain.
+
+⚠️ **Jangan memberi tint warna ke `boss-core`.** Tint di Phaser adalah perkalian, dan sprite
+itu sudah merah gelap — tint hijau/biru hanya menghasilkan gumpalan gelap yang tidak terbaca.
+Ini sempat dicoba dan harus dibatalkan. (`boss-sentinel` terang, jadi tint fase 2 aman.)
+
+**Sprite boss satu frame.** `Sentinel` hanya satu PNG, tanpa animasi. `Boss` menggoyang
+**sudutnya** (±3,5°, dipercepat di fase 2) — bukan posisi atau skala, supaya badan Arcade
+tidak ikut terpengaruh. `Enemy.createAnimations` melewati sheet yang framenya < 2, dan
+daftarnya diturunkan dari data agar sprite boss baru tidak diam-diam kehilangan animasi.
+
+**Hitbox tidak selalu di tengah frame.** Sepertiga bawah frame `Sentinel` isinya kaki dan
+bayangan, jadi hitbox yang dipusatkan otomatis akan menggantung di bayangannya. `EnemyType`
+punya `bodyOffsetY` untuk ini (`Sentinel`: -14 px sebelum skala).
 
 **Pola serangan** (`src/entities/Boss.ts`):
 
 | Pola | Efek | Fase 2 |
 |---|---|---|
-| `spread` | tembakan melingkar, 8 (B1) / 12 (B2) proyektil | 12 / 18 proyektil |
+| `spread` | tembakan melingkar, 6 (B1) / 12 (B2) proyektil | 10 / 18 proyektil |
 | `beam` | beam terarah, telegraf 0,65 s lalu aktif 0,42 s | dua beam menyilang |
 | `summon` | memanggil 3–4 musuh biasa di sekelilingnya | +1 musuh |
 | `charge` | menerjang lurus ke posisi pemain saat itu | — |
 
 Fase 2 aktif di HP < 50%: boss memerah, sedikit membesar, dan jeda antar pola dipersingkat
-(x0,65 untuk B1, x0,6 untuk B2).
+(x0,62 untuk B1, x0,6 untuk B2). Warna fase 2 dipasang lewat `Boss.baseTint()`, bukan
+`setTint()` sekali jalan — versi lama kehilangan warna itu permanen begitu boss kena pukul,
+karena `Enemy.flash()` mengembalikan warna dari `config.tint` yang kosong.
 
 **Beam tidak memakai body fisika.** Arcade Physics tidak mendukung body yang dirotasi,
 sedangkan beam bisa mengarah ke sudut mana pun. Deteksi kenanya dihitung manual sebagai
@@ -388,7 +411,8 @@ Yang diimplementasi:
 
 - **HP bar** gambar di kiri atas; berubah merah saat HP <= 30%.
 - Baris teks ringkas: HP angka, nomor wave, sisa musuh, skor.
-- **Bar HP boss** di tengah atas saat wave boss, berganti merah di fase 2.
+- **Bar HP boss** di tengah **bawah** saat wave boss, berganti merah di fase 2. Dulu di
+  atas, dan namanya menimpa baris kedua teks HUD (yang membentang y=14..30).
 - Banner "WAVE N" di awal tiap wave, panel upgrade, panel jeda, panel akhir.
 - Semua panel berlatar gelap semi-transparan — tanpa itu teks bertumpuk dengan sprite
   dan tidak terbaca (masalah nyata yang terlihat di M3).
@@ -455,9 +479,8 @@ Semua path relatif terhadap `Legacy Collection/Assets/`.
 | FX musuh mati | `.../sprites/enemy-death/` | 8 PNG |
 | FX kena hit | `Explosions and Magic/Hit/Sprites/` | 3 PNG |
 | Musuh organik | `TinyRPG/Characters/Battle Sprites/Living Pack 1/{Slime,Frog}/` | sheet + frame lepas |
-| Musuh mesin | `TinyRPG/Characters/Battle Sprites/Mechanic/` | 5 PNG |
-| Boss | `TinyRPG/Characters/Battle Sprites/Monster Pack Files/` | 7 monster |
-| Boss besar | `Warped/Characters/top-down-boss/PNG/` | frame lepas |
+| Boss wave 5 | `TinyRPG/Characters/Battle Sprites/Mechanic/Sentinel.png` | 1 PNG — dipakai |
+| Boss wave 10 | `Warped/Characters/top-down-boss/PNG/` | frame lepas — dipakai |
 | Pickup | `Misc/gems/spritesheets/gems-spritesheet.png` | sheet |
 
 **Format catatan:** spritesheet FX ansimuz punya ukuran tidak rata (mis. `slash-circular.png`
