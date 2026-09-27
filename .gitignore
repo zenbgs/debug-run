@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.local
+.DS_Store
+
+# Aset mentah pihak ketiga — besar, dan lisensinya belum diverifikasi.
+# Jangan di-commit sampai status lisensi jelas. (lihat CREDITS.md)
+Legacy Collection/

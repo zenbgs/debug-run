@@ -1,0 +1,550 @@
+import Phaser from 'phaser';
+import { isBossType, SPAWNABLE_BY_ID } from '../data/bosses';
+import { CAMERA, TILE } from '../data/config';
+import type { EnemyType } from '../data/enemies';
+import { EMPTY } from '../data/tiles';
+import type { Upgrade } from '../data/upgrades';
+import { WAVES, WAVE_TIMING, waveClearBonus, type Wave } from '../data/waves';
+import { Boss, type BossContext } from '../entities/Boss';
+import { Enemy } from '../entities/Enemy';
+import {
+  Player,
+  PLAYER_ATTACK_EVENT,
+  PLAYER_DIED_EVENT,
+  type Facing,
+  type PlayerAttackPayload,
+} from '../entities/Player';
+import { buildArena } from '../systems/ArenaBuilder';
+import { audio } from '../systems/Audio';
+import { BossAttacks } from '../systems/BossAttacks';
+import { CombatSystem } from '../systems/CombatSystem';
+import { createFxAnimations, playFx } from '../systems/Fx';
+import { createParticleTexture } from '../systems/Particles';
+import { addText, createPanel, showWaveBanner } from '../systems/Ui';
+import { UpgradePanel } from '../systems/UpgradePanel';
+import { WaveManager } from '../systems/WaveManager';
+import { TILESET_TEXTURE } from './BootScene';
+
+const DEPTH = {
+  GROUND: 0,
+  OBJECTS: 5,
+  ENEMY: 8,
+  PLAYER: 10,
+  DEBUG: 99,
+  HUD: 100,
+} as const;
+
+/** Rotasi FX slash mengikuti arah hadap. Sprite aslinya digambar menghadap kanan. */
+const FX_ANGLE: Record<Facing, number> = {
+  right: 0,
+  left: 0,
+  up: -90,
+  down: 90,
+};
+
+type SceneState = 'playing' | 'upgrade' | 'paused' | 'gameover' | 'victory';
+
+export class GameScene extends Phaser.Scene {
+  private player!: Player;
+  private combat!: CombatSystem;
+  private waves!: WaveManager;
+  private upgradePanel!: UpgradePanel;
+  private enemyGroup!: Phaser.Physics.Arcade.Group;
+  private bossAttacks!: BossAttacks;
+  private activeBoss?: Boss;
+  private bossBar?: Phaser.GameObjects.Graphics;
+  private bossLabel?: Phaser.GameObjects.Text;
+  private obstacles!: Phaser.Tilemaps.TilemapLayer;
+
+  private debugGraphics?: Phaser.GameObjects.Graphics;
+  private hudText!: Phaser.GameObjects.Text;
+  private hudBar!: Phaser.GameObjects.Graphics;
+  private pausePanel?: { destroy: () => void };
+
+  private state: SceneState = 'playing';
+  private kills = 0;
+  private score = 0;
+  private elapsedMs = 0;
+  /** Berapa kali tiap upgrade sudah diambil, untuk menghormati batas stack. */
+  private takenUpgrades = new Map<string, number>();
+  private upgradeDelayTimer = 0;
+
+  constructor() {
+    super('Game');
+  }
+
+  create(): void {
+    this.state = 'playing';
+    this.kills = 0;
+    this.score = 0;
+    this.elapsedMs = 0;
+    this.takenUpgrades = new Map();
+    this.upgradeDelayTimer = 0;
+    this.debugGraphics = undefined;
+    this.activeBoss = undefined;
+    this.bossBar = undefined;
+    this.bossLabel = undefined;
+
+    const arena = buildArena(TILE);
+
+    this.createLayer(arena.ground, DEPTH.GROUND);
+    this.obstacles = this.createLayer(arena.objects, DEPTH.OBJECTS);
+    this.obstacles.setCollisionByExclusion([EMPTY]);
+
+    this.physics.world.setBounds(0, 0, arena.widthInPixels, arena.heightInPixels);
+
+    createParticleTexture(this);
+    createFxAnimations(this);
+    Player.createAnimations(this);
+    Enemy.createAnimations(this);
+
+    this.combat = new CombatSystem(this);
+    this.upgradePanel = new UpgradePanel(this);
+
+    this.player = new Player(this, arena.spawn.x, arena.spawn.y);
+    this.player.setDepth(DEPTH.PLAYER);
+    this.physics.add.collider(this.player, this.obstacles);
+    this.player.on(PLAYER_ATTACK_EVENT, this.onPlayerAttack, this);
+    this.player.once(PLAYER_DIED_EVENT, this.onPlayerDied, this);
+
+    this.enemyGroup = this.physics.add.group({ runChildUpdate: false });
+    this.physics.add.collider(this.enemyGroup, this.obstacles);
+    this.physics.add.collider(this.enemyGroup, this.enemyGroup);
+    this.physics.add.overlap(this.player, this.enemyGroup, this.onPlayerTouchedEnemy, undefined, this);
+
+    this.bossAttacks = new BossAttacks(this);
+    // Proyektil boss hancur kena tembok, dan menyakiti pemain kalau kena.
+    this.physics.add.collider(this.bossAttacks.bolts, this.obstacles, (bolt) => {
+      (bolt as Phaser.GameObjects.GameObject).destroy();
+    });
+    this.physics.add.overlap(this.player, this.bossAttacks.bolts, this.onPlayerHitByBolt, undefined, this);
+
+    const camera = this.cameras.main;
+    camera.setBounds(0, 0, arena.widthInPixels, arena.heightInPixels);
+    camera.startFollow(this.player, true, CAMERA.LERP, CAMERA.LERP);
+    camera.setRoundPixels(true);
+
+    this.createDebugOverlay();
+    this.setupRestart();
+
+    // Dibuat terakhir: konstruktornya langsung memulai wave 1 dan memanggil onWaveStart.
+    this.waves = new WaveManager(
+      { width: arena.widthInPixels, height: arena.heightInPixels },
+      {
+        createEnemy: (type, x, y) => this.createEnemy(type, x, y),
+        onSpawn: (enemy) => {
+          if (!(enemy instanceof Boss)) enemy.setDepth(DEPTH.ENEMY);
+          this.enemyGroup.add(enemy);
+        },
+        onWaveStart: (wave) => this.onWaveStart(wave),
+        onWaveCleared: (wave) => this.onWaveCleared(wave),
+        onAllWavesCleared: () => this.onVictory(),
+      }
+    );
+  }
+
+  /** Membuat Enemy biasa atau Boss, lengkap dengan konteks serangannya. */
+  private createEnemy(type: EnemyType, x: number, y: number): Enemy {
+    if (!isBossType(type)) return new Enemy(this, x, y, type);
+
+    const context: BossContext = {
+      fireBolt: (bx, by, angle, speed, damage) =>
+        this.bossAttacks.fireBolt(bx, by, angle, speed, damage),
+      fireBeam: (bx, by, angle, damage) => this.bossAttacks.fireBeam(bx, by, angle, damage),
+      summon: (typeId, sx, sy) => {
+        const summonType = SPAWNABLE_BY_ID.get(typeId);
+        if (!summonType) return;
+        const minion = new Enemy(this, sx, sy, summonType);
+        minion.setDepth(DEPTH.ENEMY);
+        this.enemyGroup.add(minion);
+      },
+    };
+
+    const boss = new Boss(this, x, y, type, context);
+    this.activeBoss = boss;
+    this.createBossBar(type.bossName);
+    return boss;
+  }
+
+  private createBossBar(name: string): void {
+    this.bossBar?.destroy();
+    this.bossLabel?.destroy();
+    this.bossBar = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.HUD);
+    this.bossLabel = this.add
+      .text(this.scale.width / 2, 22, name, {
+        fontFamily: 'monospace',
+        fontSize: '8px',
+        color: '#ff8a7a',
+      })
+      .setOrigin(0.5, 0.5)
+      .setScrollFactor(0)
+      .setDepth(DEPTH.HUD);
+  }
+
+  private destroyBossBar(): void {
+    this.bossBar?.destroy();
+    this.bossLabel?.destroy();
+    this.bossBar = undefined;
+    this.bossLabel = undefined;
+    this.activeBoss = undefined;
+  }
+
+  /** Menggambar bar HP boss di bagian atas layar. */
+  private updateBossBar(): void {
+    if (!this.bossBar) return;
+
+    if (!this.activeBoss || !this.activeBoss.isAlive) {
+      this.destroyBossBar();
+      return;
+    }
+
+    const width = 180;
+    const height = 5;
+    const x = (this.scale.width - width) / 2;
+    const y = 31;
+    const ratio = this.activeBoss.healthRatio;
+
+    this.bossBar.clear();
+    this.bossBar.fillStyle(0x0d0b14, 0.85).fillRect(x - 1, y - 1, width + 2, height + 2);
+    this.bossBar.fillStyle(0x4a4458, 1).fillRect(x, y, width, height);
+    this.bossBar
+      .fillStyle(this.activeBoss.currentPhase === 2 ? 0xff6b6b : 0xffe066, 1)
+      .fillRect(x, y, width * ratio, height);
+  }
+
+  private readonly onPlayerHitByBolt: Phaser.Types.Physics.Arcade.ArcadePhysicsCallback = (
+    _playerObject,
+    boltObject
+  ) => {
+    if (this.state !== 'playing') return;
+    const bolt = boltObject as Phaser.Physics.Arcade.Sprite;
+    const damage = (bolt.getData('damage') as number) ?? 0;
+    const hit = this.player.takeDamage(damage, bolt.x, bolt.y);
+    bolt.destroy();
+    if (hit) this.cameras.main.shake(120, 0.005);
+  };
+
+  private get aliveEnemies(): Enemy[] {
+    return this.enemyGroup.getChildren().filter((child): child is Enemy => {
+      return child instanceof Enemy && child.isAlive;
+    });
+  }
+
+  private onWaveStart(wave: Wave): void {
+    // Dipanggil dari konstruktor WaveManager, jadi `this.waves` belum ter-assign.
+    // Pakai WAVES.length langsung, jangan `this.waves`.
+    showWaveBanner(
+      this,
+      wave.number,
+      WAVES.length,
+      wave.label,
+      WAVE_TIMING.INTRO_MS,
+      wave.isBossWave === true
+    );
+    audio.play(wave.isBossWave ? 'bossSpawn' : 'waveStart');
+  }
+
+  private onWaveCleared(wave: Wave): void {
+    this.score += waveClearBonus(wave.number);
+    audio.play('waveClear');
+
+    // Setelah wave terakhir tidak ada gunanya menawarkan upgrade — langsung menang.
+    if (wave.number >= WAVES.length) {
+      this.waves.advanceToNextWave();
+      return;
+    }
+
+    // Jeda pendek sebelum panel upgrade, supaya kill terakhir sempat terlihat.
+    this.upgradeDelayTimer = WAVE_TIMING.CLEAR_DELAY_MS;
+  }
+
+  private openUpgradePanel(): void {
+    this.state = 'upgrade';
+    this.upgradePanel.open(this.takenUpgrades, (upgrade) => this.onUpgradePicked(upgrade));
+  }
+
+  private onUpgradePicked(upgrade: Upgrade): void {
+    audio.play('upgrade');
+    this.player.applyUpgrade(upgrade);
+    this.takenUpgrades.set(upgrade.id, (this.takenUpgrades.get(upgrade.id) ?? 0) + 1);
+    this.state = 'playing';
+    this.waves.advanceToNextWave();
+  }
+
+  private onPlayerAttack(payload: PlayerAttackPayload): void {
+    if (this.state !== 'playing') return;
+    const { step, x, y, facing } = payload;
+
+    const dirX = facing === 'right' ? 1 : facing === 'left' ? -1 : 0;
+    const dirY = facing === 'down' ? 1 : facing === 'up' ? -1 : 0;
+
+    playFx(this, step.fxKey, x + dirX * step.fxOffset, y + dirY * step.fxOffset, {
+      scale: step.fxScale,
+      angle: FX_ANGLE[facing],
+      flipX: facing === 'left',
+    });
+
+    const targets = this.aliveEnemies;
+    const result = this.combat.resolveAttack(step, { x, y, facing }, targets, {
+      damageMultiplier: this.player.stats.damageMultiplier,
+      rangeMultiplier: this.player.stats.rangeMultiplier,
+    });
+
+    // Musuh yang mati sudah destroy() sendiri; hitung selisihnya untuk skor.
+    for (const enemy of targets) {
+      if (!enemy.isAlive) {
+        this.kills++;
+        this.score += enemy.config.score;
+      }
+    }
+
+    if (this.player.stats.lifesteal > 0 && result.damageDealt > 0) {
+      this.player.heal(result.damageDealt * this.player.stats.lifesteal);
+    }
+  }
+
+  private readonly onPlayerTouchedEnemy: Phaser.Types.Physics.Arcade.ArcadePhysicsCallback = (
+    _playerObject,
+    enemyObject
+  ) => {
+    if (this.state !== 'playing') return;
+    if (!(enemyObject instanceof Enemy) || !enemyObject.isAlive) return;
+
+    const hit = this.player.takeDamage(
+      enemyObject.config.contactDamage,
+      enemyObject.x,
+      enemyObject.y
+    );
+    if (hit) {
+      this.cameras.main.shake(140, 0.006);
+      // Sengaja TIDAK pakai camera.flash(): efek itu beranjak dari alpha 1, jadi
+      // seluruh layar tersapu merah pekat dan bikin silau. Tint singkat pada sprite
+      // pemain menyampaikan hal yang sama tanpa menutupi arena.
+      this.player.setTint(0xff6b6b);
+      this.time.delayedCall(140, () => {
+        if (this.player.active) this.player.clearTint();
+      });
+    }
+  };
+
+  /** Menghentikan semua gerak. Dipakai saat kalah maupun menang. */
+  private freezeEverything(): void {
+    this.bossAttacks.clear();
+    this.destroyBossBar();
+
+    const playerBody = this.player.body as Phaser.Physics.Arcade.Body;
+    playerBody.setVelocity(0, 0);
+    playerBody.setAcceleration(0, 0);
+    playerBody.moves = false;
+
+    for (const enemy of this.aliveEnemies) {
+      const body = enemy.body as Phaser.Physics.Arcade.Body;
+      body.setVelocity(0, 0);
+      body.moves = false;
+    }
+  }
+
+  private onPlayerDied(): void {
+    if (this.state === 'gameover' || this.state === 'victory') return;
+    this.state = 'gameover';
+    this.upgradePanel.close();
+    this.freezeEverything();
+    audio.play('gameOver');
+    this.showEndPanel('KALAH', '#ff8a7a');
+  }
+
+  private onVictory(): void {
+    this.state = 'victory';
+    this.upgradePanel.close();
+    this.freezeEverything();
+    audio.play('victory');
+    this.showEndPanel('SEMUA WAVE SELESAI', '#8fd35d');
+  }
+
+  private showEndPanel(title: string, color: string): void {
+    const panel = createPanel(this, 210, 92);
+    const cx = this.scale.width / 2;
+    const top = this.scale.height / 2 - 46;
+
+    addText(this, panel, cx, top + 16, title, { size: 12, color });
+    addText(
+      this,
+      panel,
+      cx,
+      top + 46,
+      [
+        `wave tercapai : ${this.waves.waveNumber} / ${this.waves.totalWaves}`,
+        `bug dibasmi   : ${this.kills}`,
+        `waktu         : ${(this.elapsedMs / 1000).toFixed(1)} detik`,
+        `SKOR          : ${this.score}`,
+      ].join('\n'),
+      { size: 8, color: '#e8e4f0' }
+    );
+    addText(this, panel, cx, top + 80, 'tekan R untuk ulang', { size: 8, color: '#ffe066' });
+  }
+
+  private setupRestart(): void {
+    this.input.keyboard?.on('keydown-R', () => {
+      if (this.state === 'gameover' || this.state === 'victory') this.scene.restart();
+    });
+    this.input.keyboard?.on('keydown-ESC', () => this.togglePause());
+    this.input.keyboard?.on('keydown-M', () => {
+      const muted = audio.toggleMute();
+      if (!muted) audio.play('select');
+    });
+  }
+
+  /** Jeda hanya boleh dari/ke kondisi bermain — bukan saat memilih upgrade atau sudah berakhir. */
+  private togglePause(): void {
+    if (this.state === 'playing') {
+      this.state = 'paused';
+      this.physics.world.pause();
+      const panel = createPanel(this, 150, 40);
+      addText(this, panel, this.scale.width / 2, this.scale.height / 2 - 5, 'JEDA', {
+        size: 12,
+        color: '#ffe066',
+      });
+      addText(this, panel, this.scale.width / 2, this.scale.height / 2 + 10, 'ESC untuk lanjut', {
+        size: 8,
+        color: '#c9c4d8',
+      });
+      this.pausePanel = panel;
+      return;
+    }
+
+    if (this.state === 'paused') {
+      this.state = 'playing';
+      this.physics.world.resume();
+      this.pausePanel?.destroy();
+      this.pausePanel = undefined;
+    }
+  }
+
+  /** Membuat satu layer tilemap dari array index 2 dimensi. */
+  private createLayer(data: number[][], depth: number): Phaser.Tilemaps.TilemapLayer {
+    const map = this.make.tilemap({ data, tileWidth: TILE, tileHeight: TILE });
+    const tileset = map.addTilesetImage(TILESET_TEXTURE);
+    if (!tileset) {
+      throw new Error(`Tileset "${TILESET_TEXTURE}" gagal dimuat.`);
+    }
+    const layer = map.createLayer(0, tileset, 0, 0);
+    if (!layer) {
+      throw new Error('Gagal membuat layer tilemap.');
+    }
+    return layer.setDepth(depth);
+  }
+
+  /** Overlay bantu development — dihapus di M6. */
+  private createDebugOverlay(): void {
+    this.hudBar = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.HUD);
+    this.hudText = this.add
+      .text(4, 14, '', {
+        fontFamily: 'monospace',
+        fontSize: '8px',
+        color: '#c9c4d8',
+      })
+      .setScrollFactor(0)
+      .setDepth(DEPTH.HUD);
+
+    const tileDebug = this.add.graphics().setDepth(DEPTH.DEBUG).setVisible(false);
+    this.obstacles.renderDebug(tileDebug, {
+      tileColor: null,
+      collidingTileColor: new Phaser.Display.Color(255, 90, 140, 60),
+      faceColor: new Phaser.Display.Color(255, 255, 255, 120),
+    });
+
+    this.input.keyboard?.on('keydown-F1', () => {
+      const show = !tileDebug.visible;
+      tileDebug.setVisible(show);
+
+      if (show && !this.physics.world.debugGraphic) {
+        this.physics.world.createDebugGraphic();
+      }
+      this.physics.world.drawDebug = show;
+      const graphic = this.physics.world.debugGraphic;
+      if (graphic) {
+        graphic.setVisible(show);
+        if (!show) graphic.clear();
+      }
+
+      if (show && !this.debugGraphics) {
+        this.debugGraphics = this.add.graphics().setDepth(DEPTH.DEBUG);
+      }
+      this.debugGraphics?.setVisible(show);
+      if (!show) this.debugGraphics?.clear();
+    });
+  }
+
+  private drawAttackHitbox(): void {
+    const graphics = this.debugGraphics;
+    if (!graphics || !graphics.visible) return;
+
+    graphics.clear();
+    const step = this.player.peekNextStep();
+    const shape = this.combat.debugShape(
+      step,
+      { x: this.player.x, y: this.player.y, facing: this.player.getFacing() },
+      this.player.stats.rangeMultiplier
+    );
+
+    graphics.lineStyle(1, 0xffe066, 0.9);
+    if (shape instanceof Phaser.Geom.Circle) {
+      graphics.strokeCircle(shape.x, shape.y, shape.radius);
+    } else {
+      graphics.strokeRect(shape.x, shape.y, shape.width, shape.height);
+    }
+  }
+
+  private updateHud(aliveCount: number): void {
+    const ratio = this.player.healthRatio;
+    const width = 92;
+    const height = 6;
+
+    this.hudBar.clear();
+    this.hudBar.fillStyle(0x0d0b14, 0.8).fillRect(3, 3, width + 2, height + 2);
+    this.hudBar.fillStyle(0x4a4458, 1).fillRect(4, 4, width, height);
+    // Merah saat kritis supaya terbaca tanpa harus membaca angka.
+    this.hudBar
+      .fillStyle(ratio <= 0.3 ? 0xff6b6b : 0x8fd35d, 1)
+      .fillRect(4, 4, Math.max(0, width * ratio), height);
+
+    const sisa = aliveCount + this.waves.remainingInQueue;
+    this.hudText.setText(
+      `${Math.ceil(this.player.health)}/${this.player.maxHealth}   ` +
+        `WAVE ${this.waves.waveNumber}/${this.waves.totalWaves}   ` +
+        `sisa ${sisa}   skor ${this.score}`
+    );
+  }
+
+  override update(_time: number, delta: number): void {
+    if (this.state === 'paused') return;
+
+    this.combat.update(delta);
+    if (this.combat.isFrozen) return;
+
+    const alive = this.aliveEnemies;
+
+    if (this.state === 'playing') {
+      this.elapsedMs += delta;
+      this.player.update();
+
+      const target = new Phaser.Math.Vector2(this.player.x, this.player.y);
+      const now = this.time.now;
+      const deltaSeconds = delta / 1000;
+      for (const enemy of alive) enemy.tick(target, now, deltaSeconds);
+
+      this.bossAttacks.update(delta, this.player);
+      this.waves.update(delta, alive.length, this.cameras.main);
+
+      // Panel upgrade dibuka setelah jeda pendek pasca wave bersih.
+      if (this.upgradeDelayTimer > 0) {
+        this.upgradeDelayTimer -= delta;
+        if (this.upgradeDelayTimer <= 0) this.openUpgradePanel();
+      }
+    }
+
+    this.drawAttackHitbox();
+    this.updateBossBar();
+    this.updateHud(alive.length);
+  }
+}

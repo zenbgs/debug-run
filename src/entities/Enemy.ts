@@ -1,0 +1,271 @@
+import Phaser from 'phaser';
+import { COMBAT } from '../data/combat';
+import { CHARGER, ZIGZAG, type EnemyType } from '../data/enemies';
+import { SHEETS } from '../data/frames';
+import { audio } from '../systems/Audio';
+import { playFx } from '../systems/Fx';
+import { spawnDeathBurst, spawnHitSparks } from '../systems/Particles';
+
+/** Nama animasi idle per texture — satu animasi dipakai bersama semua varian tint. */
+function idleAnimKey(texture: string): string {
+  return `${texture}-idle`;
+}
+
+type ChargerPhase = 'aim' | 'dash' | 'recover';
+
+/** Pergeseran di bawah ini (piksel per frame) dianggap "tidak bergerak". */
+const STUCK_MOVE_EPSILON = 0.4;
+/** Selama ini tidak bergerak padahal ingin bergerak -> dorong paksa. */
+const STUCK_LIMIT_MS = 1200;
+/** Jarak dorongan paksa. Harus lebih besar dari satu tile (16 px) agar benar-benar lolos. */
+const UNSTICK_NUDGE = 22;
+
+export class Enemy extends Phaser.Physics.Arcade.Sprite {
+  /** `type` sudah dipakai Phaser.GameObjects.Sprite, jadi pakai nama lain. */
+  readonly config: EnemyType;
+
+  private hp: number;
+  private knockbackUntil = 0;
+  private flashTimer?: Phaser.Time.TimerEvent;
+
+  /** Fase acak per musuh, supaya goyangan zigzag tidak seragam. */
+  private readonly wobbleOffset: number;
+  private chargerPhase: ChargerPhase = 'aim';
+  private chargerPhaseUntil = 0;
+  private chargerDirection = new Phaser.Math.Vector2(0, 0);
+
+  /** Pelacak macet — lihat catatan di `applyUnstick`. */
+  private lastX = 0;
+  private lastY = 0;
+  private stuckMs = 0;
+
+  constructor(scene: Phaser.Scene, x: number, y: number, type: EnemyType) {
+    super(scene, x, y, type.texture, 0);
+
+    this.config = type;
+    this.hp = type.hp;
+    this.wobbleOffset = Math.random() * Math.PI * 2;
+
+    scene.add.existing(this);
+    scene.physics.add.existing(this);
+
+    this.setScale(type.scale);
+    if (type.tint !== undefined) this.setTint(type.tint);
+
+    const body = this.body as Phaser.Physics.Arcade.Body;
+    body.setSize(type.bodyWidth, type.bodyHeight);
+    body.setCollideWorldBounds(true);
+    // Knockback meredam sendiri, bukan meluncur terus.
+    body.setDrag(COMBAT.ENEMY_DRAG, COMBAT.ENEMY_DRAG);
+    body.setBounce(0);
+
+    this.lastX = x;
+    this.lastY = y;
+
+    this.play(idleAnimKey(type.texture));
+  }
+
+  /** Buat animasi idle untuk ketiga spritesheet musuh. Dipanggil sekali per scene. */
+  static createAnimations(scene: Phaser.Scene): void {
+    const sheets = [SHEETS.ENEMY_BEETLE, SHEETS.ENEMY_CRAWLER, SHEETS.ENEMY_MOTH, SHEETS.BOSS_CORE];
+    for (const sheet of sheets) {
+      const key = idleAnimKey(sheet.key);
+      if (scene.anims.exists(key)) continue;
+      scene.anims.create({
+        key,
+        frames: scene.anims.generateFrameNumbers(sheet.key, { start: 0, end: sheet.frames - 1 }),
+        frameRate: 8,
+        repeat: -1,
+      });
+    }
+  }
+
+  get isAlive(): boolean {
+    return this.active && this.hp > 0;
+  }
+
+  get healthRatio(): number {
+    return Phaser.Math.Clamp(this.hp / this.config.hp, 0, 1);
+  }
+
+  /** @returns true kalau serangan ini membunuhnya. */
+  takeDamage(amount: number, knockbackX: number, knockbackY: number): boolean {
+    if (!this.isAlive) return false;
+
+    this.hp -= amount;
+
+    playFx(this.scene, SHEETS.FX_HIT.key, this.x, this.y, { scale: 0.8 });
+    spawnHitSparks(this.scene, this.x, this.y);
+    audio.play('hit');
+    this.flash();
+
+    if (this.hp <= 0) {
+      this.die();
+      return true;
+    }
+
+    const resist = 1 - this.config.knockbackResist;
+    if (resist > 0) {
+      const body = this.body as Phaser.Physics.Arcade.Body | null;
+      body?.setVelocity(knockbackX * resist, knockbackY * resist);
+      this.knockbackUntil = this.scene.time.now + COMBAT.KNOCKBACK_MS;
+    }
+    return false;
+  }
+
+  private flash(): void {
+    const original = this.config.tint;
+    this.setTintFill(0xffffff);
+    this.flashTimer?.remove();
+    this.flashTimer = this.scene.time.delayedCall(COMBAT.HIT_FLASH_MS, () => {
+      if (!this.active) return;
+      this.clearTint();
+      if (original !== undefined) this.setTint(original);
+    });
+  }
+
+  private die(): void {
+    playFx(this.scene, SHEETS.FX_ENEMY_DEATH.key, this.x, this.y, { scale: 0.7 });
+    spawnDeathBurst(this.scene, this.x, this.y, this.config.tint ?? 0xffffff);
+    audio.play('kill');
+    this.flashTimer?.remove();
+    this.destroy();
+  }
+
+  /** Dipanggil tiap frame oleh GameScene selama musuh hidup. */
+  tick(target: Phaser.Math.Vector2, now: number, deltaSeconds: number): void {
+    const body = this.body as Phaser.Physics.Arcade.Body | null;
+    if (!body) return;
+
+    // Selama terdorong, AI tidak mengambil alih — biar knockback terasa.
+    if (now < this.knockbackUntil) return;
+
+    switch (this.config.behavior) {
+      case 'chase':
+        this.moveChase(body, target);
+        break;
+      case 'zigzag':
+        this.moveZigzag(body, target, now);
+        break;
+      case 'charger':
+        this.moveCharger(body, target, now);
+        break;
+    }
+
+    this.applyUnstick(body, target, deltaSeconds);
+
+    // Sprite hanya punya satu orientasi; flip mengikuti arah gerak horizontal.
+    if (Math.abs(body.velocity.x) > 5) this.setFlipX(body.velocity.x < 0);
+  }
+
+  /**
+   * AI mengejar tidak punya pathfinding: musuh mendorong lurus ke pemain dan bisa
+   * tersangkut permanen di balik batu/pohon. Karena wave baru bersih kalau SEMUA
+   * musuh mati, satu musuh nyangkut membuat permainan deadlock — ini benar-benar
+   * terjadi di M4 dan menghentikan wave 1 selamanya.
+   *
+   * Dua lapis penanganan:
+   *  1. Meluncur menyusuri tembok — kalau arah maju terhalang, belok tegak lurus
+   *     ke sisi yang mendekatkan ke pemain.
+   *  2. Jaring pengaman — kalau tetap tidak bergerak selama `STUCK_LIMIT_MS`,
+   *     dorong paksa melewati rintangan. Jelek, tapi jauh lebih baik daripada
+   *     permainan yang mustahil diselesaikan.
+   */
+  private applyUnstick(
+    body: Phaser.Physics.Arcade.Body,
+    target: Phaser.Math.Vector2,
+    deltaSeconds: number
+  ): void {
+    const wantsToMove = Math.abs(body.velocity.x) > 1 || Math.abs(body.velocity.y) > 1;
+    const moved = Math.hypot(this.x - this.lastX, this.y - this.lastY);
+    this.lastX = this.x;
+    this.lastY = this.y;
+
+    if (!wantsToMove || moved > STUCK_MOVE_EPSILON) {
+      this.stuckMs = 0;
+      return;
+    }
+
+    this.stuckMs += deltaSeconds * 1000;
+
+    // Lapis 1: meluncur menyusuri tembok.
+    const blocked = body.blocked;
+    const speed = this.config.speed;
+    if ((blocked.left && body.velocity.x < 0) || (blocked.right && body.velocity.x > 0)) {
+      body.setVelocity(0, (target.y >= this.y ? 1 : -1) * speed);
+    } else if ((blocked.up && body.velocity.y < 0) || (blocked.down && body.velocity.y > 0)) {
+      body.setVelocity((target.x >= this.x ? 1 : -1) * speed, 0);
+    }
+
+    // Lapis 2: jaring pengaman.
+    if (this.stuckMs >= STUCK_LIMIT_MS) {
+      this.stuckMs = 0;
+      const dir = this.directionTo(target);
+      body.reset(this.x + dir.x * UNSTICK_NUDGE, this.y + dir.y * UNSTICK_NUDGE);
+    }
+  }
+
+  private directionTo(target: Phaser.Math.Vector2): Phaser.Math.Vector2 {
+    return new Phaser.Math.Vector2(target.x - this.x, target.y - this.y).normalize();
+  }
+
+  private moveChase(body: Phaser.Physics.Arcade.Body, target: Phaser.Math.Vector2): void {
+    const dir = this.directionTo(target);
+    body.setVelocity(dir.x * this.config.speed, dir.y * this.config.speed);
+  }
+
+  private moveZigzag(
+    body: Phaser.Physics.Arcade.Body,
+    target: Phaser.Math.Vector2,
+    now: number
+  ): void {
+    const dir = this.directionTo(target);
+    // Vektor tegak lurus arah kejar, dikalikan gelombang sinus.
+    const wobble =
+      Math.sin(now / 1000 * ZIGZAG.FREQUENCY + this.wobbleOffset) * ZIGZAG.AMPLITUDE;
+    const vx = (dir.x + -dir.y * wobble) * this.config.speed;
+    const vy = (dir.y + dir.x * wobble) * this.config.speed;
+    body.setVelocity(vx, vy);
+  }
+
+  private moveCharger(
+    body: Phaser.Physics.Arcade.Body,
+    target: Phaser.Math.Vector2,
+    now: number
+  ): void {
+    if (now >= this.chargerPhaseUntil) {
+      switch (this.chargerPhase) {
+        case 'aim':
+          // Arah dikunci saat mulai menerjang — pemain bisa menghindar.
+          this.chargerDirection = this.directionTo(target);
+          this.chargerPhase = 'dash';
+          this.chargerPhaseUntil = now + CHARGER.DASH_MS;
+          break;
+        case 'dash':
+          this.chargerPhase = 'recover';
+          this.chargerPhaseUntil = now + CHARGER.RECOVER_MS;
+          break;
+        case 'recover':
+          this.chargerPhase = 'aim';
+          this.chargerPhaseUntil = now + CHARGER.AIM_MS;
+          break;
+      }
+    }
+
+    if (this.chargerPhase === 'dash') {
+      body.setVelocity(
+        this.chargerDirection.x * this.config.speed,
+        this.chargerDirection.y * this.config.speed
+      );
+      return;
+    }
+
+    if (this.chargerPhase === 'aim') {
+      const dir = this.directionTo(target);
+      body.setVelocity(dir.x * CHARGER.AIM_SPEED, dir.y * CHARGER.AIM_SPEED);
+      return;
+    }
+
+    body.setVelocity(0, 0);
+  }
+}
