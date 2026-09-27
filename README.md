@@ -32,6 +32,7 @@ Tidak butuh backend, tidak butuh konfigurasi. Cukup buka di browser desktop.
 | Pukul (combo 3 langkah) | `J` atau klik kiri |
 | Skill Purge — AoE melingkar | `K` atau klik kanan |
 | Skill Shock — garis menembus + stun | `L` atau `Q` |
+| Dash (kebal selama bergerak) | `Spasi` atau `Shift` |
 | Pilih upgrade antar wave | `1` / `2` / `3` |
 | Jeda | `Esc` |
 | Senyapkan audio | `M` |
@@ -45,6 +46,7 @@ Tidak butuh backend, tidak butuh konfigurasi. Cukup buka di browser desktop.
 - **Combo 3 pukulan** dengan hitstop, knockback, dan screen shake
 - **2 skill berpendingin**: Purge (AoE melingkar, 25 damage) dan Shock (garis menembus,
   18 damage + membuat musuh terpaku 0,8 detik)
+- **Dash** 160 px dengan kebal penuh dan bayangan sisa, pendinginan 1,2 detik
 - **7 upgrade**, dipilih 1 dari 3 setiap kali wave bersih
 - Boss punya 4 pola serangan (tembakan melingkar, beam bertelegraf, memanggil musuh,
   menerjang) dan **fase kedua** di bawah 50% HP
@@ -56,8 +58,9 @@ SFX dan musik disintesis lewat Web Audio API dari oscillator dan noise
 (`src/systems/Audio.ts`). Browser baru mengizinkan bunyi setelah interaksi pengguna,
 jadi audio terbuka saat menekan SPASI di layar judul.
 
-**Total aset hanya ~100 KB.** Tujuh spritesheet, satu tileset, delapan FX — semuanya di-pack
-dari frame per-PNG oleh `tools/pack_assets.py`.
+**Total aset ~140 KB.** Tujuh spritesheet, satu tileset, delapan FX (di-pack dari frame
+per-PNG oleh `tools/pack_assets.py`), plus font pixel 29 KB yang di-host sendiri — bukan
+dari CDN, jadi game tetap jalan offline.
 
 **Angka balancing ada di `src/data/`,** terpisah dari logika. Menyetel permainan berarti
 mengubah data, bukan kode.
@@ -72,6 +75,7 @@ src/
   systems/    ArenaBuilder, CombatSystem, WaveManager, BossAttacks,
               Audio, Particles, Ui, UpgradePanel
 public/assets/  sprite, tileset, FX  (lihat CREDITS.md)
+public/fonts/   Press Start 2P (OFL) + teks lisensinya
 tools/          pack_assets.py — generator spritesheet
 ```
 
@@ -117,9 +121,9 @@ Semua milestone selesai.
 | M4 | 10 wave, upgrade, skor, game over | ✅ |
 | M5 | 2 boss + pola serangan + fase | ✅ |
 | M6 | Audio, partikel, layar judul, balancing | ✅ |
-| + | Skill Purge & Shock (SPEC §5.2.1) | ✅ |
+| + | Skill Purge & Shock, dash, font pixel | ✅ |
 
-Belum ada: dash (SPEC §5.2) dan font pixel `Press Start 2P`.
+Seluruh isi SPEC §4-§5.2 sudah terimplementasi.
 
 ## Lisensi
 
@@ -128,5 +132,8 @@ Kode: **MIT** (lihat [LICENSE](./LICENSE)).
 Aset pixel art: **CC0** dari [Legacy Collection](https://ansimuz.itch.io/) karya
 Luis Zuno (ansimuz) — bebas dipakai tanpa kewajiban atribusi, tapi tetap dikreditkan
 di [CREDITS.md](./CREDITS.md).
+
+Font [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) karya CodeMan38:
+**SIL Open Font License 1.1** — teks lisensinya disertakan di `public/fonts/OFL.txt`.
 
 Nama "Bug Bash", Octocat, dan aset milik GitHub **tidak** dipakai di project ini.

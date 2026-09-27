@@ -20,32 +20,36 @@ export class TitleScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor('#0d0b14');
 
-    const panel = createPanel(this, 260, 150);
+    const panel = createPanel(this, 360, 168);
 
-    addText(this, panel, cx, cy - 58, 'DEBUG RUN', { size: 20, color: '#8fd35d' });
-    addText(this, panel, cx, cy - 38, 'basmi bug sebelum bug membasmi kamu', {
-      size: 8,
+    addText(this, panel, cx, cy - 66, 'DEBUG RUN', { size: 20, color: '#8fd35d' });
+    addText(this, panel, cx, cy - 46, 'basmi bug sebelum bug membasmi kamu', {
+      size: 6,
       color: '#c9c4d8',
     });
 
     // Rata kiri, bukan tengah: daftar dua kolom harus sejajar supaya terbaca.
+    // Ukuran 6 px dipilih karena Press Start 2P jauh lebih lebar daripada monospace —
+    // pada 8 px daftar ini meluber keluar panel.
     addText(
       this,
       panel,
-      cx - 78,
-      cy + 2,
+      cx - 156,
+      cy - 4,
       [
-        'WASD / panah   gerak',
-        'J / klik kiri  pukul (combo 3)',
-        '1 2 3          pilih upgrade',
-        'ESC            jeda',
-        'M              senyapkan',
+        'WASD / panah    gerak',
+        'J / klik kiri   pukul (combo 3)',
+        'K / klik kanan  skill Purge',
+        'L atau Q        skill Shock',
+        'SPASI / SHIFT   dash (kebal)',
+        '1 2 3           pilih upgrade',
+        'ESC  M          jeda  senyapkan',
       ].join('\n'),
-      { size: 8, color: '#e8e4f0', align: 'left' }
+      { size: 6, color: '#e8e4f0', align: 'left' }
     );
 
-    const prompt = addText(this, panel, cx, cy + 56, 'tekan SPASI untuk mulai', {
-      size: 9,
+    const prompt = addText(this, panel, cx, cy + 66, 'tekan SPASI untuk mulai', {
+      size: 8,
       color: '#ffe066',
     });
     this.tweens.add({ targets: prompt, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });

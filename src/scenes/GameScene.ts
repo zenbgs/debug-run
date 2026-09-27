@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { isBossType, SPAWNABLE_BY_ID } from '../data/bosses';
-import { CAMERA, TILE } from '../data/config';
+import { CAMERA, FONT_FAMILY, TILE } from '../data/config';
 import type { EnemyType } from '../data/enemies';
 import { EMPTY } from '../data/tiles';
 import { SHOCK_FX_STEPS } from '../data/skills';
@@ -173,7 +173,7 @@ export class GameScene extends Phaser.Scene {
     this.bossBar = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.HUD);
     this.bossLabel = this.add
       .text(this.scale.width / 2, 22, name, {
-        fontFamily: 'monospace',
+        fontFamily: FONT_FAMILY,
         fontSize: '8px',
         color: '#ff8a7a',
       })
@@ -377,11 +377,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showEndPanel(title: string, color: string): void {
-    const panel = createPanel(this, 210, 92);
+    const panel = createPanel(this, 300, 100);
     const cx = this.scale.width / 2;
     const top = this.scale.height / 2 - 46;
 
-    addText(this, panel, cx, top + 16, title, { size: 12, color });
+    addText(this, panel, cx, top + 16, title, { size: 10, color });
     addText(
       this,
       panel,
@@ -393,9 +393,9 @@ export class GameScene extends Phaser.Scene {
         `waktu         : ${(this.elapsedMs / 1000).toFixed(1)} detik`,
         `SKOR          : ${this.score}`,
       ].join('\n'),
-      { size: 8, color: '#e8e4f0' }
+      { size: 7, color: '#e8e4f0' }
     );
-    addText(this, panel, cx, top + 80, 'tekan R untuk ulang', { size: 8, color: '#ffe066' });
+    addText(this, panel, cx, top + 84, 'tekan R untuk ulang', { size: 7, color: '#ffe066' });
   }
 
   private setupRestart(): void {
@@ -414,13 +414,13 @@ export class GameScene extends Phaser.Scene {
     if (this.state === 'playing') {
       this.state = 'paused';
       this.physics.world.pause();
-      const panel = createPanel(this, 150, 40);
-      addText(this, panel, this.scale.width / 2, this.scale.height / 2 - 5, 'JEDA', {
+      const panel = createPanel(this, 190, 44);
+      addText(this, panel, this.scale.width / 2, this.scale.height / 2 - 6, 'JEDA', {
         size: 12,
         color: '#ffe066',
       });
       addText(this, panel, this.scale.width / 2, this.scale.height / 2 + 10, 'ESC untuk lanjut', {
-        size: 8,
+        size: 7,
         color: '#c9c4d8',
       });
       this.pausePanel = panel;
@@ -454,7 +454,7 @@ export class GameScene extends Phaser.Scene {
     this.hudBar = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.HUD);
     this.hudText = this.add
       .text(4, 14, '', {
-        fontFamily: 'monospace',
+        fontFamily: FONT_FAMILY,
         fontSize: '8px',
         color: '#c9c4d8',
       })
@@ -533,11 +533,14 @@ export class GameScene extends Phaser.Scene {
       )
       .join('  ');
 
+    const dashMs = this.player.dashCooldownRemaining();
+    const dash = dashMs > 0 ? `[SPC]${(dashMs / 1000).toFixed(1)}s` : '[SPC]Dash';
+
     this.hudText.setText(
       `${Math.ceil(this.player.health)}/${this.player.maxHealth}   ` +
         `WAVE ${this.waves.waveNumber}/${this.waves.totalWaves}   ` +
         `sisa ${sisa}   skor ${this.score}
-${skills}`
+${skills}  ${dash}`
     );
   }
 

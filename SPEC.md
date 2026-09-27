@@ -87,9 +87,18 @@ tetap keyboard-only dan konsisten dengan sprite 3-arah yang kita punya (lihat §
 | Pukul 3 (finisher) | 22 | 0.6 s | lingkaran r=34 | `slash-circular` (6 frame) |
 | **Purge** (skill 1) ✅ | 25 | 6 s | lingkaran r=44 | `slash-circular` di-scale 1.5× |
 | **Shock** (skill 2) ✅ | 18 + stun 0.8 s | 9 s | garis 96×22, tembus musuh | `electro-shock` (9 frame) |
-| **Dash** ⬜ | — | 1.2 s | 160 px, i-frame penuh | after-image sprite |
+| **Dash** ✅ | — | 1.2 s | 160 px, i-frame penuh | after-image sprite |
 
-### 5.2.1 Skill (diimplementasi setelah M6)
+### 5.2.1 Skill dan dash (diimplementasi setelah M6)
+
+**Dash** (`SPASI` / `SHIFT`): 160 px dalam 180 ms, pendinginan 1,2 detik, **kebal penuh**
+selama bergerak, dengan bayangan sisa yang memudar. Kebalnya disengaja — tanpa itu dash
+hanya melemparkan pemain ke dalam kerumunan dan justru menambah damage yang diterima.
+Arah dash mengikuti input gerak; kalau diam, mengikuti arah hadap.
+
+Dash tetap tunduk pada tabrakan tembok dan rintangan: menabrak pohon di tengah dash akan
+memotong jaraknya. Itu perilaku yang diinginkan, bukan bug.
+
 
 Skill memakai struktur data yang sama dengan langkah combo (`AttackStep`), jadi seluruh
 jalur hitbox, knockback, hitstop, dan screen shake di `CombatSystem` dipakai ulang apa
@@ -282,8 +291,14 @@ Yang diimplementasi:
   dan tidak terbaca (masalah nyata yang terlihat di M3).
 - Alur scene: `Title` → `Game`. Kalah/menang ditangani di dalam `Game` + `R` untuk ulang.
 
-**Font:** masih memakai monospace bawaan sistem. `Press Start 2P` sengaja BELUM dipasang
-karena akan menambah permintaan jaringan ke Google Fonts; ini sisa polesan opsional.
+**Font:** `Press Start 2P` (OFL), **di-host sendiri** di `public/fonts/` — bukan lewat
+Google Fonts CDN, supaya game tetap jalan offline dan tidak ada permintaan pihak ketiga.
+Font harus sudah termuat sebelum objek teks Phaser pertama dibuat (`muatFont()` di
+`main.ts`); Phaser menggambar teks ke canvas dan tidak akan menggambar ulang ketika font
+datang belakangan.
+
+⚠️ Press Start 2P **jauh lebih lebar** daripada monospace bawaan pada ukuran px yang sama.
+Saat menggantinya, seluruh panel harus diukur ulang — teks langsung meluber keluar bingkai.
 
 ---
 

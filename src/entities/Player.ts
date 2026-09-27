@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COMBAT, COMBO, type AttackStep } from '../data/combat';
-import { PLAYER } from '../data/config';
+import { DASH, PLAYER } from '../data/config';
 import { SHEETS } from '../data/frames';
 import { SKILLS, type Skill, type SkillId } from '../data/skills';
 import { createBaseStats, type PlayerStats, type Upgrade } from '../data/upgrades';
@@ -58,6 +58,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   /** Waktu (ms) kapan tiap skill boleh dipakai lagi. */
   private readonly skillReadyAt = new Map<SkillId, number>();
 
+  private dashUntil = 0;
+  private dashReadyAt = 0;
+  private dashNextAfterimageAt = 0;
+  private readonly dashDirection = new Phaser.Math.Vector2(0, 0);
+
   private hp: number = PLAYER.MAX_HP;
   private invulnerableUntil = 0;
   private hurtKnockbackUntil = 0;
@@ -73,6 +78,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     attack: Phaser.Input.Keyboard.Key[];
     purge: Phaser.Input.Keyboard.Key[];
     shock: Phaser.Input.Keyboard.Key[];
+    dash: Phaser.Input.Keyboard.Key[];
   };
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
@@ -101,6 +107,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       attack: [keyboard.addKey(K.J)],
       purge: [keyboard.addKey(K.K)],
       shock: [keyboard.addKey(K.L), keyboard.addKey(K.Q)],
+      dash: [keyboard.addKey(K.SPACE), keyboard.addKey(K.SHIFT)],
     };
 
     // Klik kanan dipakai Purge, jadi menu konteks browser harus dimatikan.
@@ -164,7 +171,63 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   get isInvulnerable(): boolean {
-    return this.scene.time.now < this.invulnerableUntil;
+    // Dash memberi kebal penuh selama durasinya.
+    return this.scene.time.now < this.invulnerableUntil || this.isDashing;
+  }
+
+  get isDashing(): boolean {
+    return this.scene.time.now < this.dashUntil;
+  }
+
+  /** Sisa pendinginan dash dalam ms. 0 berarti siap. */
+  dashCooldownRemaining(): number {
+    return Math.max(0, this.dashReadyAt - this.scene.time.now);
+  }
+
+  private tryDash(dx: number, dy: number): void {
+    const now = this.scene.time.now;
+    if (this.isDashing || this.dashCooldownRemaining() > 0) return;
+
+    // Arah dash mengikuti input gerak; kalau diam, ikuti arah hadap.
+    if (dx !== 0 || dy !== 0) this.dashDirection.set(dx, dy).normalize();
+    else {
+      const f = this.facingVector();
+      this.dashDirection.set(f.x, f.y);
+    }
+
+    this.dashUntil = now + DASH.DURATION_MS;
+    this.dashReadyAt = now + DASH.COOLDOWN_MS;
+    this.dashNextAfterimageAt = 0;
+
+    // Pasang kecepatan SEKARANG juga, jangan menunggu frame berikutnya: frame
+    // pemicu akan memakai kecepatan jalan yang lama dan memangkas jarak dash.
+    this.applyDashVelocity();
+    audio.play('select');
+  }
+
+  private applyDashVelocity(): void {
+    const speed = (DASH.DISTANCE / DASH.DURATION_MS) * 1000;
+    (this.body as Phaser.Physics.Arcade.Body).setVelocity(
+      this.dashDirection.x * speed,
+      this.dashDirection.y * speed
+    );
+  }
+
+  /** Bayangan sisa: salinan frame saat ini yang memudar lalu dihapus. */
+  private spawnAfterimage(): void {
+    const ghost = this.scene.add.sprite(this.x, this.y, PLAYER_TEXTURE, this.frame.name);
+    ghost.setFlipX(this.flipX);
+    ghost.setDepth(this.depth - 1);
+    ghost.setAlpha(0.45);
+    ghost.setTint(0x8ad0ff);
+
+    this.scene.tweens.add({
+      targets: ghost,
+      alpha: 0,
+      duration: DASH.AFTERIMAGE_FADE_MS,
+      onComplete: () => ghost.destroy(),
+    });
+    this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => ghost.destroy());
   }
 
   /**
@@ -308,6 +371,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     const held = (group: Phaser.Input.Keyboard.Key[]) => group.some((key) => key.isDown);
 
+    // Dash berjalan: kunci gerak, keluarkan bayangan, abaikan input lain.
+    if (this.isDashing) {
+      this.applyDashVelocity();
+      if (now >= this.dashNextAfterimageAt) {
+        this.spawnAfterimage();
+        this.dashNextAfterimageAt = now + DASH.AFTERIMAGE_EVERY_MS;
+      }
+      return;
+    }
+
     if (held(this.keys.attack)) this.tryAttack();
     if (held(this.keys.purge)) this.trySkill('purge');
     if (held(this.keys.shock)) this.trySkill('shock');
@@ -328,6 +401,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       const inv = Math.SQRT1_2;
       dx *= inv;
       dy *= inv;
+    }
+
+    if (held(this.keys.dash)) {
+      this.tryDash(dx, dy);
+      if (this.isDashing) return;
     }
 
     const recovering = now < this.recoveryUntil;

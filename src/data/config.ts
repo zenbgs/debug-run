@@ -11,6 +11,13 @@ export const VIEW = {
 
 export const TILE = 16;
 
+/**
+ * Font pixel yang di-host sendiri (`public/fonts/`), bukan lewat CDN — supaya game
+ * tetap jalan offline dan tidak ada permintaan pihak ketiga. Fallback ke monospace
+ * kalau font gagal dimuat.
+ */
+export const FONT_FAMILY = '"Press Start 2P", monospace';
+
 export const ARENA = {
   /** Ukuran arena dalam tile. 40x30 tile = 640x480 px. (SPEC.md §7) */
   COLS: 40,
@@ -35,6 +42,21 @@ export const PLAYER = {
   BODY_OFFSET_X: 10,
   BODY_OFFSET_Y: 20,
   WALK_FRAME_RATE: 8,
+} as const;
+
+/**
+ * Dash: gerak cepat menembus kerumunan dengan kebal penuh. (SPEC.md §5.2)
+ *
+ * Kebalnya disengaja dan penting: tanpa itu dash hanya akan melemparkan pemain
+ * ke dalam musuh dan justru menambah damage yang diterima.
+ */
+export const DASH = {
+  DISTANCE: 160,
+  DURATION_MS: 180,
+  COOLDOWN_MS: 1200,
+  /** Jeda antar bayangan sisa. */
+  AFTERIMAGE_EVERY_MS: 30,
+  AFTERIMAGE_FADE_MS: 220,
 } as const;
 
 export const CAMERA = {

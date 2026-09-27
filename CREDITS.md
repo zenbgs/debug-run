@@ -57,10 +57,21 @@ sumbernya berubah — jangan edit hasilnya manual.
 | SFX | ✅ **tidak butuh aset** — disintesis runtime lewat Web Audio (`src/systems/Audio.ts`) |
 | Musik latar | ✅ **tidak butuh aset** — arpeggio prosedural, sumber yang sama |
 | Tekstur partikel | ✅ **tidak butuh aset** — dibuat runtime (`src/systems/Particles.ts`) |
-| Font `Press Start 2P` | ⬜ opsional; sekarang memakai monospace bawaan sistem |
+| Font `Press Start 2P` | ✅ dipasang — lihat bagian di bawah |
 
-Artinya **seluruh aset pihak ketiga di project ini hanya berasal dari Legacy Collection**
-(4 sprite + 1 tileset + 5 FX). Tidak ada aset audio atau font eksternal yang perlu diaudit.
+---
+
+## Press Start 2P — CodeMan38
+
+Berkas: `public/fonts/PressStart2P.woff2` (29 KB)
+Penulis: **Cody Boisclair (CodeMan38)** — <https://fonts.google.com/specimen/Press+Start+2P>
+
+**Lisensi: SIL Open Font License 1.1.** Teks lisensi lengkap disertakan di
+`public/fonts/OFL.txt` sebagaimana diwajibkan OFL.
+
+Font di-**host sendiri**, bukan dimuat dari Google Fonts CDN. Alasannya: game tetap
+jalan offline, tidak ada permintaan ke pihak ketiga saat dimainkan, dan versinya
+terkunci. Berkas TTF asli (115 KB) dikonversi ke woff2 (29 KB).
 
 ---
 

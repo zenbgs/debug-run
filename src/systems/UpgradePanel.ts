@@ -38,15 +38,15 @@ export class UpgradePanel {
       return;
     }
 
-    const width = 240;
+    const width = 330;
     const rowHeight = 26;
     const height = 44 + choices.length * rowHeight;
     const centerX = this.scene.scale.width / 2;
     const top = this.scene.scale.height / 2 - height / 2;
 
     this.panel = createPanel(this.scene, width, height);
-    addText(this.scene, this.panel, centerX, top + 14, 'WAVE BERSIH — PILIH UPGRADE', {
-      size: 9,
+    addText(this.scene, this.panel, centerX, top + 14, 'WAVE BERSIH - PILIH UPGRADE', {
+      size: 7,
       color: '#ffe066',
     });
 
@@ -59,10 +59,10 @@ export class UpgradePanel {
         centerX,
         y,
         `[${index + 1}]  ${upgrade.name}`,
-        { size: 9, color: '#8fd35d' }
+        { size: 8, color: '#8fd35d' }
       );
       addText(this.scene, this.panel!, centerX, y + 11, upgrade.description, {
-        size: 8,
+        size: 6,
         color: '#c9c4d8',
       });
 

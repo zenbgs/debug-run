@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { FONT_FAMILY } from '../data/config';
 
 /**
  * Helper UI overlay. Semuanya pakai `setScrollFactor(0)` supaya menempel di layar,
@@ -13,7 +14,7 @@ export const UI_DEPTH = {
   TEXT: 201,
 } as const;
 
-const FONT = 'monospace';
+const FONT = FONT_FAMILY;
 
 export type PanelHandle = {
   container: Phaser.GameObjects.Container;
@@ -72,15 +73,15 @@ export function showWaveBanner(
   totalWaves: number,
   label: string,
   durationMs: number,
-  isBossPlaceholder: boolean
+  isBossWave: boolean
 ): void {
-  const panel = createPanel(scene, 200, 46, scene.scale.height / 2 - 30);
+  const panel = createPanel(scene, 260, 48, scene.scale.height / 2 - 30);
 
   addText(scene, panel, scene.scale.width / 2, scene.scale.height / 2 - 40,
-    `WAVE ${waveNumber} / ${totalWaves}`, { size: 12, color: '#ffe066' });
+    `WAVE ${waveNumber} / ${totalWaves}`, { size: 10, color: '#ffe066' });
   addText(scene, panel, scene.scale.width / 2, scene.scale.height / 2 - 24,
-    isBossPlaceholder ? `${label}  (wave elite — boss menyusul di M5)` : label,
-    { size: 8, color: '#c9c4d8' });
+    isBossWave ? `BOSS - ${label}` : label,
+    { size: 7, color: isBossWave ? '#ff8a7a' : '#c9c4d8' });
 
   scene.tweens.add({
     targets: panel.container,
