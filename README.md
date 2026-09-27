@@ -55,6 +55,9 @@ Tidak butuh backend, tidak butuh konfigurasi. Cukup buka di browser desktop.
   kedua wave boss, dan penutup
 - **Dash** 160 px dengan kebal penuh dan bayangan sisa, pendinginan 1,2 detik
 - **7 upgrade**, dipilih 1 dari 3 setiap kali wave bersih
+- **Pengali skor dari rantai bunuh** hingga x5 — putus kalau kamu kena pukul,
+  jadi bermain rapi benar-benar terbayar
+- **Layout arena acak tiap sesi**, bisa dikunci ke seed tetap saat debugging
 - Boss punya 4 pola serangan (tembakan melingkar, beam bertelegraf, memanggil musuh,
   menerjang) dan **fase kedua** di bawah 50% HP
 
@@ -71,6 +74,10 @@ dari CDN, jadi game tetap jalan offline.
 
 **Angka balancing ada di `src/data/`,** terpisah dari logika. Menyetel permainan berarti
 mengubah data, bukan kode.
+
+**Objek yang berumur pendek dibersihkan lewat `systems/Lifecycle.ts`.** Pola
+`scene.events.once(SHUTDOWN, ...)` per sprite pernah membocorkan 200 listener hanya
+dari ~200 pemutaran FX; helper itu melepas listener begitu objeknya hancur.
 
 ## Struktur
 
@@ -106,7 +113,8 @@ kalau butuh.
 ## Catatan development
 
 - Handle game tersedia di `window.__game` saat mode dev, untuk inspeksi lewat devtools.
-- Arena dibangun dari seed tetap (`ARENA.SEED`), jadi layout selalu sama saat development.
+- Arena memakai seed acak tiap sesi. Set `ARENA.RANDOM_SEED: false` kalau butuh
+  layout yang bisa diulang saat mengejar bug.
 - **Saat menguji lewat devtools, pastikan tab-nya di depan.** Chrome men-throttle
   `requestAnimationFrame` ke ~1 fps di tab background, sehingga game loop praktis
   berhenti dan input terlihat "tidak berfungsi" padahal kodenya benar.

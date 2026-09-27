@@ -55,6 +55,8 @@ const CLUSTERS: readonly Cluster[] = [
 const SPAWN_CLEAR_RADIUS = 4;
 
 export type Arena = {
+  /** Seed yang benar-benar dipakai — berguna untuk melaporkan bug layout. */
+  seed: number;
   /** Layer tanah — selalu terisi, opaque. */
   ground: number[][];
   /** Layer objek — prop & tembok; `EMPTY` (-1) berarti kosong. Layer ini yang menabrak. */
@@ -65,9 +67,13 @@ export type Arena = {
   heightInPixels: number;
 };
 
-export function buildArena(tileSize: number): Arena {
-  const { COLS, ROWS, BORDER, SEED } = ARENA;
-  const rng = createRng(SEED);
+export function buildArena(tileSize: number, seed?: number): Arena {
+  const { COLS, ROWS, BORDER } = ARENA;
+  // Seed acak per sesi supaya tiap run terasa berbeda; bisa dikunci lewat
+  // `ARENA.RANDOM_SEED` atau argumen `seed` saat mengejar bug.
+  const seedTerpakai =
+    seed ?? (ARENA.RANDOM_SEED ? Math.floor(Math.random() * 0xffffffff) : ARENA.SEED);
+  const rng = createRng(seedTerpakai);
 
   const spawnCol = Math.floor(COLS / 2);
   const spawnRow = Math.floor(ROWS / 2);
@@ -121,6 +127,7 @@ export function buildArena(tileSize: number): Arena {
   }
 
   return {
+    seed: seedTerpakai,
     ground,
     objects,
     spawn: {

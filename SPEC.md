@@ -236,6 +236,25 @@ supaya wave boss tidak pernah kehabisan slot spawn.
 Wave bersih -> bonus skor `50 x nomor wave`, lalu pemain memilih 1 dari 3 upgrade.
 Setelah wave 10 tidak ada tawaran upgrade — langsung layar menang.
 
+### 6.1b Pengali skor dari rantai bunuh
+
+Sebelumnya skor hanya kill + bonus wave, jadi pemain yang menghindar sempurna dan
+pemain yang pasrah ditabrak mendapat skor **sama persis**. `COMBO_SCORE` di
+`data/waves.ts` membuat bermain rapi terbayar:
+
+| Aturan | Nilai |
+|---|---|
+| Naik satu tingkat tiap | 4 bunuh beruntun |
+| Pengali maksimum | x5 |
+| Rantai putus kalau jeda antar bunuh | > 2,5 detik |
+| Rantai putus saat pemain kena | ya |
+
+Terukur: bunuh ke-1..3 memberi 10 poin (x1), ke-4..7 memberi 20 (x2), ke-8..10
+memberi 30 (x3); kena pukul langsung menjatuhkannya ke x1.
+
+Semua jalur serangan (melee, panah, skill) mencatat bunuh lewat satu fungsi
+`registerKill()` supaya pengali tidak pernah terlewat.
+
 ### 6.2 Upgrade antar wave
 
 7 upgrade di `src/data/upgrades.ts`, ditawarkan 3 acak tiap wave, dipilih lewat tombol 1/2/3.
@@ -288,6 +307,11 @@ pengaman yang mendorong paksa musuh melewati rintangan setelah 1,2 detik tanpa g
 
 **Tileset utama:** `Overworld 16x16` (ditetapkan di M1 — lihat §11 untuk alasannya).
 Lantai rumput, pembatas arena berupa hutan rapat, rintangan berupa batu dan pohon.
+
+**Seed arena acak tiap sesi** (`ARENA.RANDOM_SEED`), jadi letak rintangan berbeda
+tiap kali main. Set `RANDOM_SEED: false` — atau panggil `buildArena(tile, seed)`
+dengan seed eksplisit — saat mengejar bug layout; hasilnya terverifikasi identik
+untuk seed yang sama. Seed yang dipakai dikembalikan di `arena.seed`.
 
 Arena tunggal, **ukuran 40 × 30 tile (640 × 480 px)**, dikelilingi tembok setebal 2 tile.
 Kamera mengikuti pemain dengan *lerp* 0.1 dan dibatasi (`clamp`) di tepi arena.
@@ -414,6 +438,33 @@ t=im.crop((c*16,r*16,c*16+16,r*16+16))
 print(sum(1 for p in list(t.getdata()) if p[3]>0), '/256 piksel opaque')
 "
 ```
+
+---
+
+## 10.0 Catatan performa & kebersihan (terukur)
+
+Diukur dengan instrumentasi di browser, sebelum dan sesudah perbaikan. FPS tidak
+pernah jadi masalah (199-200 sepanjang waktu); ini soal higiene dan ruang tumbuh.
+
+| Temuan | Sebelum | Sesudah |
+|---|---|---|
+| Listener `shutdown` bocor | **+200** dari ~200 pemutaran FX | **0** pertumbuhan |
+| String HUD dibangun ulang | 1308x dalam 1308 frame (99% sia-sia) | **1x dalam 1177 frame** |
+| Panggilan getter `aliveEnemies` | 1,23 array baru per frame | 1,04 per frame (di-cache) |
+| Emitter partikel baru | 10 dalam 6 detik tempur | **0** (satu emitter dipakai ulang) |
+
+**Kebocoran listener** adalah defect, bukan preferensi: pola
+`scene.events.once(SHUTDOWN, () => obj.destroy())` per sprite FX tidak pernah
+melepas listener-nya saat sprite mati normal. Helper `destroyWithScene()` di
+`systems/Lifecycle.ts` melepasnya saat objek hancur, jadi jumlahnya selalu
+sebanding dengan objek yang hidup.
+
+**Cache `aliveEnemies`** dibatalkan sekali per frame di awal `update()`, dan juga
+setiap musuh lahir atau mati. Kalau menambah jalur yang mengubah daftar musuh,
+panggil `invalidateAliveCache()`.
+
+**HUD** hanya dirakit ulang kalau "tanda tangan" nilainya berubah. Bar HP tetap
+digambar tiap frame karena murah.
 
 ---
 

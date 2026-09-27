@@ -134,6 +134,23 @@ export const WAVE_TIMING = {
   CLEAR_DELAY_MS: 700,
 } as const;
 
+/**
+ * Pengali skor dari rantai pembunuhan.
+ *
+ * Sebelumnya skor cuma kill + bonus wave, jadi pemain yang menghindar sempurna
+ * dan pemain yang pasrah ditabrak mendapat skor sama persis. Pengali ini membuat
+ * bermain rapi terbayar: bunuh beruntun menaikkannya, kena pukul menjatuhkannya.
+ */
+export const COMBO_SCORE = {
+  /** Jeda maksimum antar bunuh supaya rantai tetap hidup. */
+  WINDOW_MS: 2500,
+  /** Berapa bunuh beruntun untuk naik satu tingkat pengali. */
+  KILLS_PER_STEP: 4,
+  MAX_MULTIPLIER: 5,
+  /** Kena pukul memutus rantai sepenuhnya. */
+  RESET_ON_HIT: true,
+} as const;
+
 /** Bonus skor saat menyelesaikan satu wave. */
 export function waveClearBonus(waveNumber: number): number {
   return 50 * waveNumber;

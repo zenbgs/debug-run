@@ -6,6 +6,7 @@ import { SHEETS } from '../data/frames';
 import { getSkill, SKILL_HOTKEYS, type Skill, type SkillId } from '../data/skills';
 import { createBaseStats, type PlayerStats, type Upgrade } from '../data/upgrades';
 import { audio } from '../systems/Audio';
+import { destroyWithScene } from '../systems/Lifecycle';
 
 export type Facing = 'down' | 'up' | 'left' | 'right';
 
@@ -255,7 +256,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       duration: DASH.AFTERIMAGE_FADE_MS,
       onComplete: () => ghost.destroy(),
     });
-    this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => ghost.destroy());
+    destroyWithScene(this.scene, ghost);
   }
 
   /**

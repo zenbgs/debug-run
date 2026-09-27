@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { FONT_FAMILY } from '../data/config';
+import { destroyWithScene } from './Lifecycle';
 
 /**
  * Helper UI overlay. Semuanya pakai `setScrollFactor(0)` supaya menempel di layar,
@@ -92,5 +93,5 @@ export function showWaveBanner(
   });
 
   // Kalau scene di-restart di tengah animasi, panel tetap ikut dibersihkan.
-  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => panel.destroy());
+  destroyWithScene(scene, panel.container);
 }

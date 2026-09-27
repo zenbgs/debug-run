@@ -8,7 +8,7 @@ import { ALL_SHEETS, SHEETS } from '../data/frames';
 import { SHOCK_FX_STEPS, type VolleyConfig } from '../data/skills';
 import { STORY_BOSS, STORY_VICTORY } from '../data/story';
 import type { Upgrade } from '../data/upgrades';
-import { WAVES, WAVE_TIMING, waveClearBonus, type Wave } from '../data/waves';
+import { COMBO_SCORE, WAVES, WAVE_TIMING, waveClearBonus, type Wave } from '../data/waves';
 import { Boss, type BossContext } from '../entities/Boss';
 import { Enemy } from '../entities/Enemy';
 import {
@@ -90,6 +90,15 @@ export class GameScene extends Phaser.Scene {
   private dialogue!: DialogueBox;
   /** Wave boss yang ceritanya sudah diputar, supaya tidak berulang. */
   private readonly bossStoryShown = new Set<number>();
+  /** Lihat getter `aliveEnemies`. */
+  private aliveCache?: Enemy[];
+  /** Isi HUD terakhir, supaya string tidak dibangun ulang tiap frame. */
+  private hudSignature = '';
+  /** Rantai bunuh beruntun; lihat `COMBO_SCORE`. */
+  private killStreak = 0;
+  private lastKillAt = Number.NEGATIVE_INFINITY;
+  private scoreMultiplier = 1;
+  private bestMultiplier = 1;
 
   constructor() {
     super('Game');
@@ -105,6 +114,11 @@ export class GameScene extends Phaser.Scene {
     this.upgradeDelayTimer = 0;
     this.debugGraphics = undefined;
     this.bossStoryShown.clear();
+    this.killStreak = 0;
+    this.lastKillAt = Number.NEGATIVE_INFINITY;
+    this.scoreMultiplier = 1;
+    this.bestMultiplier = 1;
+    this.hudSignature = '';
     this.activeBoss = undefined;
     this.bossBar = undefined;
     this.bossLabel = undefined;
@@ -168,6 +182,7 @@ export class GameScene extends Phaser.Scene {
         onSpawn: (enemy) => {
           if (!(enemy instanceof Boss)) enemy.setDepth(DEPTH.ENEMY);
           this.enemyGroup.add(enemy);
+          this.invalidateAliveCache();
         },
         onWaveStart: (wave) => this.onWaveStart(wave),
         onWaveCleared: (wave) => this.onWaveCleared(wave),
@@ -203,6 +218,7 @@ export class GameScene extends Phaser.Scene {
         const minion = new Enemy(this, sx, sy, summonType);
         minion.setDepth(DEPTH.ENEMY);
         this.enemyGroup.add(minion);
+        this.invalidateAliveCache();
       },
     };
 
@@ -267,13 +283,58 @@ export class GameScene extends Phaser.Scene {
     const damage = (bolt.getData('damage') as number) ?? 0;
     const hit = this.player.takeDamage(damage, bolt.x, bolt.y);
     bolt.destroy();
-    if (hit) this.cameras.main.shake(120, 0.005);
+    if (hit) {
+      this.breakKillStreak();
+      this.cameras.main.shake(120, 0.005);
+    }
   };
 
+  /**
+   * Daftar musuh hidup, di-cache per frame.
+   *
+   * Getter ini dipanggil beberapa kali tiap frame (terukur 1,23x/frame) dan tiap
+   * panggilan dulu membuat array baru — 1614 alokasi dalam 1308 frame. Cache
+   * dibatalkan tiap frame lewat `invalidateAliveCache()`, dan juga setiap kali
+   * musuh ditambah/dibunuh di tengah frame.
+   */
   private get aliveEnemies(): Enemy[] {
-    return this.enemyGroup.getChildren().filter((child): child is Enemy => {
+    if (this.aliveCache) return this.aliveCache;
+    this.aliveCache = this.enemyGroup.getChildren().filter((child): child is Enemy => {
       return child instanceof Enemy && child.isAlive;
     });
+    return this.aliveCache;
+  }
+
+  private invalidateAliveCache(): void {
+    this.aliveCache = undefined;
+  }
+
+  /**
+   * Satu-satunya tempat skor bertambah dari membunuh. Semua jalur serangan
+   * (melee, panah, skill) lewat sini supaya pengali tidak pernah terlewat.
+   */
+  private registerKill(enemy: Enemy): void {
+    const now = this.time.now;
+    if (now - this.lastKillAt > COMBO_SCORE.WINDOW_MS) this.killStreak = 0;
+    this.lastKillAt = now;
+    this.killStreak++;
+
+    this.scoreMultiplier = Math.min(
+      COMBO_SCORE.MAX_MULTIPLIER,
+      1 + Math.floor(this.killStreak / COMBO_SCORE.KILLS_PER_STEP)
+    );
+
+    this.bestMultiplier = Math.max(this.bestMultiplier, this.scoreMultiplier);
+    this.kills++;
+    this.score += enemy.config.score * this.scoreMultiplier;
+    this.invalidateAliveCache();
+  }
+
+  /** Rantai putus saat pemain kena. */
+  private breakKillStreak(): void {
+    if (!COMBO_SCORE.RESET_ON_HIT) return;
+    this.killStreak = 0;
+    this.scoreMultiplier = 1;
   }
 
   private onWaveStart(wave: Wave): void {
@@ -288,6 +349,7 @@ export class GameScene extends Phaser.Scene {
       wave.isBossWave === true
     );
     audio.play(wave.isBossWave ? 'bossSpawn' : 'waveStart');
+    this.breakKillStreak();
 
     // Cerita boss diputar sekali di awal wave-nya, sebelum musuh keluar.
     const beat = STORY_BOSS[wave.number];
@@ -396,10 +458,7 @@ export class GameScene extends Phaser.Scene {
 
     // Musuh yang mati sudah destroy() sendiri; hitung selisihnya untuk skor.
     for (const enemy of targets) {
-      if (!enemy.isAlive) {
-        this.kills++;
-        this.score += enemy.config.score;
-      }
+      if (!enemy.isAlive) this.registerKill(enemy);
     }
 
     if (this.player.stats.lifesteal > 0 && result.damageDealt > 0) {
@@ -552,8 +611,7 @@ export class GameScene extends Phaser.Scene {
 
         const killed = target.takeDamage(damage, away.x, away.y);
         if (killed) {
-          this.kills++;
-          this.score += target.config.score;
+          this.registerKill(target);
         } else if (stunMs > 0) {
           target.applyStun(stunMs);
         }
@@ -579,6 +637,7 @@ export class GameScene extends Phaser.Scene {
       enemyObject.y
     );
     if (hit) {
+      this.breakKillStreak();
       this.cameras.main.shake(140, 0.006);
       // Sengaja TIDAK pakai camera.flash(): efek itu beranjak dari alpha 1, jadi
       // seluruh layar tersapu merah pekat dan bikin silau. Tint singkat pada sprite
@@ -641,6 +700,7 @@ export class GameScene extends Phaser.Scene {
       [
         `wave tercapai : ${this.waves.waveNumber} / ${this.waves.totalWaves}`,
         `bug dibasmi   : ${this.kills}`,
+        `rantai terbaik : x${this.bestMultiplier}`,
         `waktu         : ${(this.elapsedMs / 1000).toFixed(1)} detik`,
         `SKOR          : ${this.score}`,
       ].join('\n'),
@@ -774,28 +834,47 @@ export class GameScene extends Phaser.Scene {
       .fillStyle(ratio <= 0.3 ? 0xff6b6b : 0x8fd35d, 1)
       .fillRect(4, 4, Math.max(0, width * ratio), height);
 
+    // Bar digambar tiap frame (murah), tapi teksnya tidak.
+    //
+    // Sebelumnya string HUD dibangun ulang 1308 kali dalam 1308 frame padahal
+    // isinya hanya berubah 13 kali — 99% terbuang, termasuk alokasi array dari
+    // `getSkillStatus()`. Sekarang string hanya dirakit kalau tanda tangannya
+    // berubah; pendinginan ditampilkan 1 desimal jadi tetap terasa hidup.
     const sisa = aliveCount + this.waves.remainingInQueue;
-    const skills = this.player
-      .getSkillStatus()
+    const hp = Math.ceil(this.player.health);
+    const dashMs = this.player.dashCooldownRemaining();
+    const dashDetik = dashMs > 0 ? (dashMs / 1000).toFixed(1) : '';
+    const skillStatus = this.player.getSkillStatus();
+    const skillDetik = skillStatus
+      .map(({ remainingMs }) => (remainingMs > 0 ? (remainingMs / 1000).toFixed(1) : ''))
+      .join(',');
+
+    const signature = `${hp}|${this.player.maxHealth}|${this.waves.waveNumber}|${sisa}|${this.score}|${this.scoreMultiplier}|${skillDetik}|${dashDetik}`;
+    if (signature === this.hudSignature) return;
+    this.hudSignature = signature;
+
+    const skills = skillStatus
       .map(({ skill, hotkey, remainingMs }) =>
         remainingMs > 0
           ? `[${hotkey}]${(remainingMs / 1000).toFixed(1)}s`
           : `[${hotkey}]${skill.name}`
       )
       .join('  ');
-
-    const dashMs = this.player.dashCooldownRemaining();
-    const dash = dashMs > 0 ? `[SPC]${(dashMs / 1000).toFixed(1)}s` : '[SPC]Dash';
+    const dash = dashDetik ? `[SPC]${dashDetik}s` : '[SPC]Dash';
+    const pengali = this.scoreMultiplier > 1 ? `  x${this.scoreMultiplier}` : '';
 
     this.hudText.setText(
-      `${Math.ceil(this.player.health)}/${this.player.maxHealth}   ` +
+      `${hp}/${this.player.maxHealth}   ` +
         `WAVE ${this.waves.waveNumber}/${this.waves.totalWaves}   ` +
-        `sisa ${sisa}   skor ${this.score}
+        `sisa ${sisa}   skor ${this.score}${pengali}
 ${skills}  ${dash}`
     );
   }
 
   override update(_time: number, delta: number): void {
+    // Satu-satunya tempat cache musuh dibatalkan secara rutin.
+    this.invalidateAliveCache();
+
     if (this.state === 'dialog') {
       this.dialogue.update(delta);
       return;

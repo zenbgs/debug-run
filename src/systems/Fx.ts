@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { ALL_SHEETS } from '../data/frames';
+import { destroyWithScene } from './Lifecycle';
 
 /** Depth FX di atas pemain supaya slash terlihat menutupi, bukan tertutup. */
 const FX_DEPTH = 20;
@@ -51,8 +52,9 @@ export function playFx(
   sprite.setFlipX(options.flipX ?? false);
 
   sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => sprite.destroy());
-  // Kalau scene dimatikan di tengah animasi, sprite tetap ikut dibersihkan.
-  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => sprite.destroy());
+  // Kalau scene dimatikan di tengah animasi, sprite tetap ikut dibersihkan —
+  // dan listener-nya dilepas begitu sprite hancur, supaya tidak menumpuk.
+  destroyWithScene(scene, sprite);
 
   sprite.play(key);
 }

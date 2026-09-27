@@ -24,8 +24,16 @@ export const ARENA = {
   ROWS: 30,
   /** Tebal tembok pembatas, dalam tile. */
   BORDER: 2,
-  /** Seed tetap supaya layout arena identik tiap run selama development. */
+  /**
+   * Seed dasar. Dipakai apa adanya kalau `RANDOM_SEED` false.
+   *
+   * Seed tetap enak saat development (layout selalu sama, bug mudah diulang),
+   * tapi membuat tiap sesi terasa identik — rintangannya persis di tempat yang
+   * sama setiap kali main. Default-nya kini acak.
+   */
   SEED: 20260927,
+  /** Set false saat mengejar bug supaya layout arena bisa diulang. */
+  RANDOM_SEED: true,
 } as const;
 
 export const PLAYER = {
