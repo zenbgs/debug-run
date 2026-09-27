@@ -49,6 +49,8 @@ Tidak butuh backend, tidak butuh konfigurasi. Cukup buka di browser desktop.
   Mage (rapuh, tapi skill dua kali lebih sering dan jauh lebih keras)
 - **6 skill — dua milik tiap kelas**, tidak ada yang dipakai bersama:
   Cleave/Warcry, Volley/Pin Shot, Purge/Shock
+- **Efek serangan dasar berbeda tiap kelas** — Warrior mengayun baja, Mage melepas
+  sabit arkana dan ledakan sihir, Archer menembak panah
 - **Cerita bergaya RPG** dengan kotak dialog berefek ketik di pembuka,
   kedua wave boss, dan penutup
 - **Dash** 160 px dengan kebal penuh dan bayangan sisa, pendinginan 1,2 detik
@@ -63,7 +65,7 @@ SFX dan musik disintesis lewat Web Audio API dari oscillator dan noise
 (`src/systems/Audio.ts`). Browser baru mengizinkan bunyi setelah interaksi pengguna,
 jadi audio terbuka saat menekan SPASI di layar judul.
 
-**Total aset ~150 KB.** Delapan spritesheet, satu tileset, sepuluh FX (di-pack dari frame
+**Total aset ~160 KB.** Delapan spritesheet, satu tileset, sebelas FX (di-pack dari frame
 per-PNG oleh `tools/pack_assets.py`), plus font pixel 29 KB yang di-host sendiri — bukan
 dari CDN, jadi game tetap jalan offline.
 

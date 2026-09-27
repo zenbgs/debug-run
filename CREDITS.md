@@ -41,7 +41,8 @@ penulisnya. Dukung karyanya di <https://ansimuz.itch.io/>.
 | `public/assets/fx/fx-hit.png` | `Assets/Explosions and Magic/Hit/Sprites/` | FX kena pukul |
 | `public/assets/fx/fx-electro-shock.png` | `.../Grotto-escape-2-FX/sprites/electro-shock/` | FX skill Shock |
 | `public/assets/fx/fx-energy-field.png` | `.../Grotto-escape-2-FX/sprites/energy-field/` | FX skill Warcry |
-| `public/assets/fx/fx-energy-smack.png` | `.../Grotto-escape-2-FX/sprites/energy-smack/` | FX cadangan |
+| `public/assets/fx/fx-arcane-crescent.png` | `Assets/Explosions and Magic/Warped shooting fx/crossed/` | FX pukulan Mage |
+| `public/assets/fx/fx-arcane-blast.png` | `.../Warped shooting fx/charged/` | FX finisher Mage |
 | `public/assets/sprites/player-arrow.png` | `Assets/Gothicvania/Misc/Dagger/` | Panah Archer |
 | `public/assets/sprites/boss-core.png` | `Assets/Warped/Characters/top-down-boss/PNG/sprites/boss/` | Sprite kedua boss |
 | `public/assets/fx/boss-bolt.png` | `.../top-down-boss/PNG/sprites/bolt/` | Proyektil boss |

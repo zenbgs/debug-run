@@ -317,6 +317,16 @@ export class GameScene extends Phaser.Scene {
     const melee = !volley && (!payload.ranged || skillId !== undefined);
     if (!melee) {
       // Kelas jarak jauh tidak punya ayunan; FX-nya adalah panah itu sendiri.
+    } else if (!skillId && this.player.playerClass.attackFx) {
+      // FX serangan dasar milik kelas menggantikan slash bawaan combo.
+      const fx = this.player.playerClass.attackFx[payload.comboIndex ?? 0];
+      if (fx) {
+        playFx(this, fx.key, x + dirX * fx.offset, y + dirY * fx.offset, {
+          scale: fx.scale,
+          angle: fx.rotates ? FX_ANGLE[facing] : 0,
+          flipX: fx.rotates && facing === 'left',
+        });
+      }
     } else if (skillId === 'shock' && step.shape.type === 'rect') {
       // Sprite petir menyembur vertikal dari satu titik, bukan sinar mendatar.
       // Jadi FX-nya ditaruh beberapa kali di sepanjang garis serangan.

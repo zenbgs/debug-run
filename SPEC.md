@@ -122,6 +122,21 @@ tombol `K` (atau klik kanan), slot 2 di `L`/`Q`.
 Skill punya dua jenis eksekusi: `hitbox` memakai jalur `CombatSystem.resolveAttack`
 yang sama dengan combo, sedangkan `volley` menembakkan panah lewat jalur proyektil.
 
+### 5.2.2b FX serangan dasar per kelas
+
+Kelas boleh mengganti FX serangan dasarnya lewat `attackFx` di `data/classes.ts`,
+satu entri per langkah combo. Tanpa ini semua kelas melee memakai sprite slash yang
+sama dan pukulan Warrior tidak bisa dibedakan dari Mage.
+
+| Kelas | Pukul 1 | Pukul 2 | Finisher |
+|---|---|---|---|
+| Warrior | `slash-horizontal` | `slash-upward` | `slash-circular` |
+| Mage | `arcane-crescent` | `arcane-crescent` (lebih besar) | `arcane-blast` |
+| Archer | — (FX-nya adalah panah itu sendiri) | — | — |
+
+Tiap entri punya `rotates`: bentuk memanjang (sabit) diputar mengikuti arah hadap,
+ledakan radial tidak.
+
 ### 5.2.3 Dash
 
 `SPASI` / `SHIFT`: 160 px dalam 180 ms, pendinginan 1,2 detik, **kebal penuh** selama

@@ -18,6 +18,19 @@ import type { SkillId } from './skills';
 /** Cara serangan dasar bekerja. Ini pembeda mekanik utama antar kelas. */
 export type AttackStyle = 'melee' | 'ranged';
 
+/** Satu FX serangan dasar. */
+export type AttackFx = {
+  key: string;
+  scale: number;
+  /** Jarak FX dari badan pemain, searah hadap. */
+  offset: number;
+  /**
+   * `true` = FX diputar mengikuti arah hadap (cocok untuk bentuk memanjang).
+   * `false` = selalu tegak (cocok untuk ledakan radial).
+   */
+  rotates: boolean;
+};
+
 export type PlayerClass = {
   id: string;
   name: string;
@@ -48,6 +61,15 @@ export type PlayerClass = {
   /** Dua skill milik kelas ini: slot 1 (tombol K) dan slot 2 (tombol L/Q). */
   skills: readonly [SkillId, SkillId];
 
+  /**
+   * FX serangan dasar, satu entri per langkah combo.
+   * Kalau kosong, dipakai FX bawaan langkah combo di `data/combat.ts`.
+   *
+   * Ini yang membuat pukulan tiap kelas terlihat berbeda: Warrior mengayun baja,
+   * Mage melepas sihir. Tanpa ini keduanya memakai sprite slash yang sama persis.
+   */
+  attackFx?: readonly AttackFx[];
+
   /** Tiga baris ringkas untuk kartu pilihan. */
   highlights: readonly string[];
 };
@@ -69,6 +91,7 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
     skillCooldownMultiplier: 1,
     dashCooldownMultiplier: 1,
     skills: ['cleave', 'warcry'],
+    // Warrior memakai FX slash baja bawaan combo.
     highlights: ['HP 130 (tertebal)', 'Damage pukul +20%', 'Gerak agak lambat'],
   },
   {
@@ -107,6 +130,13 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
     skillCooldownMultiplier: 0.5,
     dashCooldownMultiplier: 1,
     skills: ['purge', 'shock'],
+    // Mage tidak mengayun senjata: dua pukulan pertama melepas sabit arkana,
+    // finisher-nya ledakan sihir radial.
+    attackFx: [
+      { key: SHEETS.FX_ARCANE_CRESCENT.key, scale: 1.1, offset: 20, rotates: true },
+      { key: SHEETS.FX_ARCANE_CRESCENT.key, scale: 1.3, offset: 20, rotates: true },
+      { key: SHEETS.FX_ARCANE_BLAST.key, scale: 1.2, offset: 0, rotates: false },
+    ],
     highlights: ['Skill 2x lebih sering', 'Damage skill +90%', 'HP 75 (terapuh)'],
   },
 ];

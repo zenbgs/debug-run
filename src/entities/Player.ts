@@ -30,6 +30,8 @@ export type PlayerAttackPayload = {
   ranged?: boolean;
   /** Berapa proyektil yang ditembakkan (finisher menembak menyebar). */
   projectileCount?: number;
+  /** Indeks langkah combo (0-2). Dipakai memilih FX serangan per kelas. */
+  comboIndex?: number;
 };
 
 /**
@@ -390,6 +392,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         y: this.y,
         facing: this.facing,
         ranged,
+        comboIndex: index,
         // Finisher combo menembak menyebar tiga arah.
         projectileCount: ranged ? (index === COMBO.length - 1 ? 3 : 1) : undefined,
       };
