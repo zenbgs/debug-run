@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BIOMES, BIOME_BY_ID, BIOME_BY_WAVE, biomeForWave } from './biomes';
 import { BOSS_TYPES, isBossType, SPAWNABLE_BY_ID } from './bosses';
 import { PLAYER_CLASSES } from './classes';
 import { COMBO } from './combat';
@@ -78,6 +79,62 @@ describe('integritas tipe musuh', () => {
       expect(t.bodyWidth, `${t.id}`).toBeLessThanOrEqual(sheet!.frameWidth);
       expect(t.bodyHeight, `${t.id}`).toBeLessThanOrEqual(sheet!.frameHeight);
     }
+  });
+});
+
+describe('integritas biome', () => {
+  it('setiap wave punya biome yang terdaftar', () => {
+    for (const wave of WAVES) {
+      const id = BIOME_BY_WAVE[wave.number];
+      expect(id, `wave ${wave.number} tidak punya biome`).toBeDefined();
+      expect(BIOME_BY_ID.has(id), `biome "${id}" tidak ada`).toBe(true);
+    }
+  });
+
+  it('tidak ada biome yatim', () => {
+    const dipakai = new Set(Object.values(BIOME_BY_WAVE));
+    for (const b of BIOMES) expect(dipakai.has(b.id), `biome "${b.id}" tidak dipakai`).toBe(true);
+  });
+
+  it('id biome unik', () => {
+    const ids = BIOMES.map((b) => b.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('tiap biome punya lantai, tembok, dan prop', () => {
+    for (const b of BIOMES) {
+      expect(b.floorWeights.length, `${b.id} tanpa lantai`).toBeGreaterThan(0);
+      expect(b.wallVariants.length, `${b.id} tanpa tembok`).toBeGreaterThan(0);
+      expect(b.rockProps.length, `${b.id} tanpa prop batu`).toBeGreaterThan(0);
+      expect(b.foliageProps.length, `${b.id} tanpa prop rumpun`).toBeGreaterThan(0);
+      for (const [, bobot] of b.floorWeights) expect(bobot).toBeGreaterThan(0);
+    }
+  });
+
+  it('lantai dan tembok tidak boleh memakai tile yang sama', () => {
+    // Tembok yang warnanya sama dengan lantai membuat tepi arena tidak terbaca.
+    for (const b of BIOMES) {
+      const lantai = new Set(b.floorWeights.map(([t]) => t));
+      for (const w of b.wallVariants) {
+        expect(lantai.has(w), `${b.id}: tile ${w} dipakai sebagai lantai DAN tembok`).toBe(false);
+      }
+    }
+  });
+
+  it('warna latar biome berupa hex yang sah', () => {
+    for (const b of BIOMES) expect(b.backgroundColor, b.id).toMatch(/^#[0-9a-f]{6}$/i);
+  });
+
+  it('biomeForWave mengembalikan biome yang benar, dan aman untuk wave tak dikenal', () => {
+    expect(biomeForWave(1).id).toBe(BIOME_BY_WAVE[1]);
+    expect(biomeForWave(WAVES.length).id).toBe(BIOME_BY_WAVE[WAVES.length]);
+    // Tidak boleh melempar kalau jumlah wave bertambah tapi peta biome belum.
+    expect(biomeForWave(999)).toBeDefined();
+  });
+
+  it('wave berurutan tidak semuanya biome yang sama', () => {
+    const urutan = WAVES.map((w) => BIOME_BY_WAVE[w.number]);
+    expect(new Set(urutan).size, 'semua wave memakai biome yang sama').toBeGreaterThan(2);
   });
 });
 

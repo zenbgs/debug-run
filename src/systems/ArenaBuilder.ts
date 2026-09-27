@@ -1,5 +1,6 @@
+import { BIOMES, type Biome } from '../data/biomes';
 import { ARENA } from '../data/config';
-import { EMPTY, FLOOR_WEIGHTS, PROP, WALL_VARIANTS } from '../data/tiles';
+import { EMPTY } from '../data/tiles';
 
 /** PRNG mulberry32 — deterministik, supaya arena identik tiap run. */
 function createRng(seed: number): () => number {
@@ -22,6 +23,9 @@ function pickWeighted(rng: () => number, weights: ReadonlyArray<readonly [number
   return weights[0][0];
 }
 
+/** Prop mana yang dipakai sebuah cluster. Tile konkretnya datang dari biome. */
+type PropKind = 'rock' | 'foliage';
+
 type Cluster = {
   /** Titik tengah cluster, dalam tile. */
   cx: number;
@@ -29,7 +33,11 @@ type Cluster = {
   /** Sebaran prop di sekitar titik tengah, dalam tile. */
   spread: number;
   count: number;
-  tiles: readonly number[];
+  /**
+   * Peran prop, bukan index tile. Gerombolan yang sama jadi batu di gurun dan
+   * pohon di padang — bentuk arenanya tetap, isinya ikut biome.
+   */
+  kind: PropKind;
 };
 
 /**
@@ -39,16 +47,16 @@ type Cluster = {
  */
 const CLUSTERS: readonly Cluster[] = [
   // Empat gerombolan batu di sudut-dalam — cover dari proyektil.
-  { cx: 8, cy: 7, spread: 2, count: 5, tiles: [PROP.ROCK] },
-  { cx: 31, cy: 7, spread: 2, count: 5, tiles: [PROP.ROCK] },
-  { cx: 8, cy: 22, spread: 2, count: 5, tiles: [PROP.ROCK] },
-  { cx: 31, cy: 22, spread: 2, count: 5, tiles: [PROP.ROCK] },
-  // Dua rumpun pohon kiri-kanan tengah — memecah garis pandang.
-  { cx: 13, cy: 15, spread: 2, count: 7, tiles: [PROP.TREE, PROP.BUSH] },
-  { cx: 26, cy: 15, spread: 2, count: 7, tiles: [PROP.TREE, PROP.BUSH] },
+  { cx: 8, cy: 7, spread: 2, count: 5, kind: 'rock' },
+  { cx: 31, cy: 7, spread: 2, count: 5, kind: 'rock' },
+  { cx: 8, cy: 22, spread: 2, count: 5, kind: 'rock' },
+  { cx: 31, cy: 22, spread: 2, count: 5, kind: 'rock' },
+  // Dua rumpun kiri-kanan tengah — memecah garis pandang.
+  { cx: 13, cy: 15, spread: 2, count: 7, kind: 'foliage' },
+  { cx: 26, cy: 15, spread: 2, count: 7, kind: 'foliage' },
   // Rumpun atas & bawah tengah.
-  { cx: 20, cy: 8, spread: 2, count: 4, tiles: [PROP.TREE, PROP.ROCK] },
-  { cx: 20, cy: 22, spread: 2, count: 4, tiles: [PROP.TREE, PROP.ROCK] },
+  { cx: 20, cy: 8, spread: 2, count: 4, kind: 'foliage' },
+  { cx: 20, cy: 22, spread: 2, count: 4, kind: 'rock' },
 ];
 
 /** Radius (dalam tile) di sekitar spawn yang wajib bebas rintangan. */
@@ -57,6 +65,8 @@ const SPAWN_CLEAR_RADIUS = 4;
 export type Arena = {
   /** Seed yang benar-benar dipakai — berguna untuk melaporkan bug layout. */
   seed: number;
+  /** Biome yang dipakai; GameScene membacanya untuk tint dan warna latar. */
+  biome: Biome;
   /** Layer tanah — selalu terisi, opaque. */
   ground: number[][];
   /** Layer objek — prop & tembok; `EMPTY` (-1) berarti kosong. Layer ini yang menabrak. */
@@ -67,7 +77,7 @@ export type Arena = {
   heightInPixels: number;
 };
 
-export function buildArena(tileSize: number, seed?: number): Arena {
+export function buildArena(tileSize: number, seed?: number, biome: Biome = BIOMES[0]): Arena {
   const { COLS, ROWS, BORDER } = ARENA;
   // Seed acak per sesi supaya tiap run terasa berbeda; bisa dikunci lewat
   // `ARENA.RANDOM_SEED` atau argumen `seed` saat mengejar bug.
@@ -78,12 +88,12 @@ export function buildArena(tileSize: number, seed?: number): Arena {
   const spawnCol = Math.floor(COLS / 2);
   const spawnRow = Math.floor(ROWS / 2);
 
-  // 1. Layer tanah: rumput bervariasi di SELURUH peta, termasuk di bawah tembok.
+  // 1. Layer tanah: lantai biome bervariasi di SELURUH peta, termasuk di bawah tembok.
   const ground: number[][] = [];
   for (let row = 0; row < ROWS; row++) {
     const line: number[] = [];
     for (let col = 0; col < COLS; col++) {
-      line.push(pickWeighted(rng, FLOOR_WEIGHTS));
+      line.push(pickWeighted(rng, biome.floorWeights));
     }
     ground.push(line);
   }
@@ -100,7 +110,8 @@ export function buildArena(tileSize: number, seed?: number): Arena {
       const onBorder =
         row < BORDER || row >= ROWS - BORDER || col < BORDER || col >= COLS - BORDER;
       if (onBorder) {
-        objects[row][col] = WALL_VARIANTS[Math.floor(rng() * WALL_VARIANTS.length)];
+        const walls = biome.wallVariants;
+        objects[row][col] = walls[Math.floor(rng() * walls.length)];
       }
     }
   }
@@ -122,12 +133,14 @@ export function buildArena(tileSize: number, seed?: number): Arena {
       if (!insideArena(col, row)) continue;
       if (nearSpawn(col, row)) continue;
 
-      objects[row][col] = cluster.tiles[Math.floor(rng() * cluster.tiles.length)];
+      const pilihan = cluster.kind === 'rock' ? biome.rockProps : biome.foliageProps;
+      objects[row][col] = pilihan[Math.floor(rng() * pilihan.length)];
     }
   }
 
   return {
     seed: seedTerpakai,
+    biome,
     ground,
     objects,
     spawn: {

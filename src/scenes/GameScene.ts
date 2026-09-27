@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { BIOMES, biomeForWave, type Biome } from '../data/biomes';
 import { isBossType, SPAWNABLE_BY_ID, type BossType } from '../data/bosses';
 import type { ProjectileConfig } from '../data/classes';
 import { CAMERA, FONT_FAMILY, TILE } from '../data/config';
@@ -87,6 +88,9 @@ export class GameScene extends Phaser.Scene {
   private bossBar?: Phaser.GameObjects.Graphics;
   private bossLabel?: Phaser.GameObjects.Text;
   private obstacles!: Phaser.Tilemaps.TilemapLayer;
+  private groundLayer!: Phaser.Tilemaps.TilemapLayer;
+  /** Biome yang sedang tampil; dipakai banner wave dan HUD debug. */
+  private biome: Biome = BIOMES[0];
 
   private debugGraphics?: Phaser.GameObjects.Graphics;
   private hudText!: Phaser.GameObjects.Text;
@@ -136,11 +140,14 @@ export class GameScene extends Phaser.Scene {
     this.bossBar = undefined;
     this.bossLabel = undefined;
 
-    const arena = buildArena(TILE);
+    this.biome = biomeForWave(1);
+    const arena = buildArena(TILE, undefined, this.biome);
 
-    this.createLayer(arena.ground, DEPTH.GROUND);
+    this.groundLayer = this.createLayer(arena.ground, DEPTH.GROUND);
     this.obstacles = this.createLayer(arena.objects, DEPTH.OBJECTS);
     this.obstacles.setCollisionByExclusion([EMPTY]);
+    this.applyBiomeTint(this.biome);
+    this.cameras.main.setBackgroundColor(this.biome.backgroundColor);
 
     this.physics.world.setBounds(0, 0, arena.widthInPixels, arena.heightInPixels);
 
@@ -400,13 +407,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onWaveStart(wave: Wave): void {
+    // Peta diganti SEBELUM banner dan sebelum musuh keluar, supaya pemain melihat
+    // tempat barunya bersamaan dengan nama wave-nya.
+    // Wave 1 dilewati: `create()` sudah membangun arena untuk biome-nya.
+    if (wave.number > 1) this.rebuildArenaForWave(wave.number);
+
     // Dipanggil dari konstruktor WaveManager, jadi `this.waves` belum ter-assign.
     // Pakai WAVES.length langsung, jangan `this.waves`.
     showWaveBanner(
       this,
       wave.number,
       WAVES.length,
-      wave.label,
+      `${wave.label} — ${this.biome.name}`,
       WAVE_TIMING.INTRO_MS,
       wave.isBossWave === true
     );
@@ -843,6 +855,56 @@ export class GameScene extends Phaser.Scene {
       throw new Error('Gagal membuat layer tilemap.');
     }
     return layer.setDepth(depth);
+  }
+
+  /**
+   * Ganti peta untuk wave berikutnya.
+   *
+   * Tile **ditimpa di tempat** (`putTilesAt`), bukan dengan membuang layer lalu
+   * membuat yang baru. Alasannya konkret: collider pemain, musuh, panah, dan
+   * proyektil boss semuanya memegang referensi ke objek layer ini. Membuang
+   * layer berarti keempatnya menunjuk ke layer mati dan tabrakan berhenti
+   * bekerja tanpa error apa pun — persis jenis kegagalan diam-diam yang paling
+   * mahal dilacak.
+   *
+   * Layout ikut diacak ulang, bukan cuma warnanya: tiap wave dapat seed baru.
+   */
+  private rebuildArenaForWave(waveNumber: number): void {
+    const biome = biomeForWave(waveNumber);
+    const arena = buildArena(TILE, undefined, biome);
+    this.biome = biome;
+
+    this.groundLayer.putTilesAt(arena.ground, 0, 0, false);
+    this.obstacles.putTilesAt(arena.objects, 0, 0, false);
+    // Wajib diulang: biome baru memakai index tile yang berbeda, dan flag
+    // tabrakan dipasang per-index.
+    this.obstacles.setCollisionByExclusion([EMPTY]);
+
+    this.applyBiomeTint(biome);
+    this.cameras.main.setBackgroundColor(biome.backgroundColor);
+
+    // Pemain bisa saja sedang berdiri di petak yang barusan berubah jadi batu.
+    // Titik spawn dijamin bebas rintangan oleh ArenaBuilder.
+    this.player.body?.reset(arena.spawn.x, arena.spawn.y);
+    this.player.setVelocity(0, 0);
+
+    // Proyektil yang masih melayang berasal dari peta lama.
+    this.arrows.clear(true, true);
+    this.bossAttacks.clear();
+  }
+
+  /**
+   * Tint dipasang **per tile**, bukan lewat `layer.setTint()`.
+   * `Phaser.Tilemaps.TilemapLayer` tidak memakai komponen Tint sama sekali —
+   * memanggil `setTint()` di sana akan langsung meledak. `Tile.tint` ada dan
+   * memang dibaca renderer.
+   */
+  private applyBiomeTint(biome: Biome): void {
+    for (const layer of [this.groundLayer, this.obstacles]) {
+      layer.forEachTile((tile) => {
+        tile.tint = biome.tint;
+      });
+    }
   }
 
   /** Overlay bantu development — dihapus di M6. */

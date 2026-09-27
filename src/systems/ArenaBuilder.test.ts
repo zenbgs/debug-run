@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BIOMES } from '../data/biomes';
 import { ARENA, TILE } from '../data/config';
 import { EMPTY } from '../data/tiles';
 import { buildArena } from './ArenaBuilder';
@@ -72,5 +73,54 @@ describe('buildArena', () => {
     for (const baris of arena.ground) {
       for (const tile of baris) expect(tile).not.toBe(EMPTY);
     }
+  });
+
+  describe('setiap biome menghasilkan arena yang sah', () => {
+    // Jaminan di atas harus berlaku untuk SEMUA biome, bukan cuma padang rumput.
+    // Satu biome dengan daftar tile kosong akan menghasilkan arena tanpa tembok
+    // atau lantai berlubang, dan itu hanya ketahuan saat wave-nya tercapai.
+    for (const biome of BIOMES) {
+      it(biome.id, () => {
+        const arena = buildArena(TILE, 4242, biome);
+        expect(arena.biome.id).toBe(biome.id);
+
+        const { COLS, ROWS, BORDER } = ARENA;
+        const lantaiDipakai = new Set<number>();
+        const tembokDipakai = new Set<number>();
+
+        for (let row = 0; row < ROWS; row++) {
+          for (let col = 0; col < COLS; col++) {
+            expect(arena.ground[row][col], `lantai kosong (${col},${row})`).not.toBe(EMPTY);
+            lantaiDipakai.add(arena.ground[row][col]);
+
+            const diTepi =
+              row < BORDER || row >= ROWS - BORDER || col < BORDER || col >= COLS - BORDER;
+            if (diTepi) {
+              expect(arena.objects[row][col], `lubang tembok (${col},${row})`).not.toBe(EMPTY);
+              tembokDipakai.add(arena.objects[row][col]);
+            }
+          }
+        }
+
+        // Tile yang benar-benar dipakai harus berasal dari palet biome ini.
+        const lantaiSah = new Set(biome.floorWeights.map(([t]) => t));
+        for (const t of lantaiDipakai) expect(lantaiSah.has(t), `lantai asing ${t}`).toBe(true);
+        for (const t of tembokDipakai) {
+          expect(biome.wallVariants.includes(t), `tembok asing ${t}`).toBe(true);
+        }
+      });
+    }
+  });
+
+  it('biome berbeda menghasilkan lantai yang berbeda', () => {
+    // Inti keluhannya: tiap wave terlihat sama. Dua biome dengan seed sama wajib
+    // menghasilkan lantai berbeda, kalau tidak palet-nya cuma disalin.
+    const terlihat = new Set<string>();
+    for (const biome of BIOMES) {
+      const arena = buildArena(TILE, 99, biome);
+      const sidikJari = [...new Set(arena.ground.flat())].sort((a, b) => a - b).join(',');
+      terlihat.add(`${sidikJari}|${biome.tint}`);
+    }
+    expect(terlihat.size, 'ada biome yang palet lantainya identik').toBe(BIOMES.length);
   });
 });

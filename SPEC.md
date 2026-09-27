@@ -370,7 +370,7 @@ pengaman yang mendorong paksa musuh melewati rintangan setelah 1,2 detik tanpa g
 ## 7. Arena & visual
 
 **Tileset utama:** `Overworld 16x16` (ditetapkan di M1 — lihat §11 untuk alasannya).
-Lantai rumput, pembatas arena berupa hutan rapat, rintangan berupa batu dan pohon.
+Lantai, pembatas, dan rintangan diambil per-biome; lihat §7.2.
 
 **Seed arena acak tiap sesi** (`ARENA.RANDOM_SEED`), jadi letak rintangan berbeda
 tiap kali main. Set `RANDOM_SEED: false` — atau panggil `buildArena(tile, seed)`
@@ -392,6 +392,50 @@ dan terlihat sebagai kotak hitam.
 
 **Palet & rasa:** jangan menambahkan warna di luar palet tileset; efek dan UI ikut
 mengambil warna dari sana.
+
+
+### 7.2 Biome — tiap wave main di tempat berbeda
+
+Sepuluh wave dulunya memakai satu peta rumput yang sama; yang berubah hanya letak
+batunya. Sekarang tiap wave punya **biome**: palet lantai, tembok, dan prop sendiri.
+
+| Wave | Biome | Lantai | Tembok | Tint |
+|---|---|---|---|---|
+| 1–2 | Padang Arsip | rumput | hutan gelap | — |
+| 3–4 | Gurun Retak | pasir | batu gelap | — |
+| 5 (boss) | Reruntuhan | bata | batu | dingin, meredam oranye |
+| 6–7 | Rawa Bangkai | air dalam | hutan rapat | — |
+| 8–9 | Padang Malam | rumput | hutan gelap | biru malam |
+| 10 (boss) | Kekosongan | bata | batu | ungu |
+
+⚠️ **Hanya ada satu tileset tampak-atas di Legacy Collection.** Gothicvania (rocky,
+castle, grunge), Misc/colorful, dan Warped/alien semuanya tileset platformer
+tampak-samping — tanah di bawah, langit di atas. Gugur dengan alasan yang sama
+seperti roster musuh di M2 dan sprite boss di M5.
+`Warped/top-down-space-environment` memang tampak-atas tapi isinya gambar latar
+nebula dan sprite asteroid lepas, bukan grid tile. Jadi biome disusun dari palet
+berbeda **di dalam** `overworld.png`, yang ternyata memuat pasir, air, dan bata.
+
+⚠️ **`Phaser.Tilemaps.TilemapLayer` tidak punya komponen Tint** — `setTint()` di
+sana akan meledak. Tint dipasang per tile lewat `Tile.tint`, yang memang dibaca
+renderer (`TilemapLayerWebGLRenderer`).
+
+⚠️ **Tint adalah perkalian, jadi ia tidak bisa menambah warna yang tidak ada.**
+Percobaan pertama memakai `0x5a72b8` untuk "malam" dan hasilnya hijau gelap, bukan
+biru: rumput punya B=76 melawan G=171, jadi biru hanya menang kalau rasio
+`tintG/tintB` di bawah 0,44. Nilai yang dipakai sekarang dihitung, bukan ditebak —
+rumput (141,171,76) → (29,44,70). Masalah yang sama berlaku untuk bata dan ungu.
+
+**Peta diganti di tempat, bukan dibuat ulang.** `rebuildArenaForWave()` menimpa tile
+lewat `putTilesAt` dan menjalankan ulang `setCollisionByExclusion`. Layer-nya TIDAK
+boleh dibuang: collider pemain, musuh, panah, dan proyektil boss semuanya memegang
+referensi ke objek layer itu. Membuangnya membuat keempatnya menunjuk layer mati dan
+tabrakan berhenti bekerja **tanpa error apa pun**.
+
+Setiap pergantian wave juga memakai seed baru, jadi layout ikut berubah — bukan
+sekadar ganti warna. Pemain dipindahkan ke titik spawn (dijamin bebas rintangan)
+karena petak tempatnya berdiri bisa saja baru berubah jadi batu, dan proyektil yang
+masih melayang dibersihkan karena berasal dari peta lama.
 
 ---
 
