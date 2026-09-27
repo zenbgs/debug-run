@@ -8,7 +8,7 @@ import { ALL_SHEETS, SHEETS } from '../data/frames';
 import { SHOCK_FX_STEPS, type VolleyConfig } from '../data/skills';
 import { STORY_BOSS, STORY_VICTORY } from '../data/story';
 import { UPGRADE_FX, type Upgrade } from '../data/upgrades';
-import { COMBO_SCORE, WAVES, WAVE_TIMING, waveClearBonus, type Wave } from '../data/waves';
+import { WAVES, WAVE_TIMING, waveClearBonus, type Wave } from '../data/waves';
 import { Boss, type BossContext } from '../entities/Boss';
 import { Enemy } from '../entities/Enemy';
 import {
@@ -23,6 +23,7 @@ import { audio } from '../systems/Audio';
 import { BossAttacks } from '../systems/BossAttacks';
 import { CombatSystem } from '../systems/CombatSystem';
 import { DamageNumbers } from '../systems/DamageNumbers';
+import { ScoreStreak } from '../systems/ScoreStreak';
 import { DialogueBox } from '../systems/DialogueBox';
 import { createFxAnimations, playFx } from '../systems/Fx';
 import { createParticleTexture } from '../systems/Particles';
@@ -96,11 +97,8 @@ export class GameScene extends Phaser.Scene {
   private aliveCache?: Enemy[];
   /** Isi HUD terakhir, supaya string tidak dibangun ulang tiap frame. */
   private hudSignature = '';
-  /** Rantai bunuh beruntun; lihat `COMBO_SCORE`. */
-  private killStreak = 0;
-  private lastKillAt = Number.NEGATIVE_INFINITY;
-  private scoreMultiplier = 1;
-  private bestMultiplier = 1;
+  /** Rantai bunuh beruntun; logikanya murni dan diuji terpisah. */
+  private readonly streak = new ScoreStreak();
   /** Musuh yang sudah terkena dash ini; dikosongkan saat dash selesai. */
   private readonly dashHitIds = new Set<Enemy>();
 
@@ -118,10 +116,7 @@ export class GameScene extends Phaser.Scene {
     this.upgradeDelayTimer = 0;
     this.debugGraphics = undefined;
     this.bossStoryShown.clear();
-    this.killStreak = 0;
-    this.lastKillAt = Number.NEGATIVE_INFINITY;
-    this.scoreMultiplier = 1;
-    this.bestMultiplier = 1;
+    this.streak.reset();
     this.dashHitIds.clear();
     this.hudSignature = '';
     this.activeBoss = undefined;
@@ -377,30 +372,18 @@ export class GameScene extends Phaser.Scene {
    * (melee, panah, skill) lewat sini supaya pengali tidak pernah terlewat.
    */
   private registerKill(enemy: Enemy): void {
-    const now = this.time.now;
-    if (now - this.lastKillAt > COMBO_SCORE.WINDOW_MS) this.killStreak = 0;
-    this.lastKillAt = now;
-    this.killStreak++;
-
-    this.scoreMultiplier = Math.min(
-      COMBO_SCORE.MAX_MULTIPLIER,
-      1 + Math.floor(this.killStreak / COMBO_SCORE.KILLS_PER_STEP)
-    );
-
-    this.bestMultiplier = Math.max(this.bestMultiplier, this.scoreMultiplier);
+    const pengali = this.streak.registerKill(this.time.now);
     this.kills++;
-    this.score += enemy.config.score * this.scoreMultiplier;
+    this.score += enemy.config.score * pengali;
     this.invalidateAliveCache();
 
     // Dipanggil setelah cache dibatalkan supaya ledakan melihat daftar terbaru.
     this.applyDeathBlast(enemy.x, enemy.y, enemy);
   }
 
-  /** Rantai putus saat pemain kena. */
+  /** Rantai turun satu tingkat saat pemain kena. */
   private breakKillStreak(): void {
-    if (!COMBO_SCORE.RESET_ON_HIT) return;
-    this.killStreak = 0;
-    this.scoreMultiplier = 1;
+    this.streak.onPlayerHit();
   }
 
   private onWaveStart(wave: Wave): void {
@@ -782,7 +765,7 @@ export class GameScene extends Phaser.Scene {
       [
         `wave tercapai : ${this.waves.waveNumber} / ${this.waves.totalWaves}`,
         `bug dibasmi   : ${this.kills}`,
-        `rantai terbaik : x${this.bestMultiplier}`,
+        `rantai terbaik : x${this.streak.best}`,
         `waktu         : ${(this.elapsedMs / 1000).toFixed(1)} detik`,
         `SKOR          : ${this.score}`,
       ].join('\n'),
@@ -931,7 +914,7 @@ export class GameScene extends Phaser.Scene {
       .map(({ remainingMs }) => (remainingMs > 0 ? (remainingMs / 1000).toFixed(1) : ''))
       .join(',');
 
-    const signature = `${hp}|${this.player.maxHealth}|${this.waves.waveNumber}|${sisa}|${this.score}|${this.scoreMultiplier}|${skillDetik}|${dashDetik}`;
+    const signature = `${hp}|${this.player.maxHealth}|${this.waves.waveNumber}|${sisa}|${this.score}|${this.streak.current}|${skillDetik}|${dashDetik}`;
     if (signature === this.hudSignature) return;
     this.hudSignature = signature;
 
@@ -943,7 +926,7 @@ export class GameScene extends Phaser.Scene {
       )
       .join('  ');
     const dash = dashDetik ? `[SPC]${dashDetik}s` : '[SPC]Dash';
-    const pengali = this.scoreMultiplier > 1 ? `  x${this.scoreMultiplier}` : '';
+    const pengali = this.streak.current > 1 ? `  x${this.streak.current}` : '';
 
     this.hudText.setText(
       `${hp}/${this.player.maxHealth}   ` +

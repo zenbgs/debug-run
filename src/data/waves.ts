@@ -148,12 +148,18 @@ export const WAVE_TIMING = {
  */
 export const COMBO_SCORE = {
   /** Jeda maksimum antar bunuh supaya rantai tetap hidup. */
-  WINDOW_MS: 2500,
+  WINDOW_MS: 3000,
   /** Berapa bunuh beruntun untuk naik satu tingkat pengali. */
-  KILLS_PER_STEP: 4,
+  KILLS_PER_STEP: 3,
   MAX_MULTIPLIER: 5,
-  /** Kena pukul memutus rantai sepenuhnya. */
-  RESET_ON_HIT: true,
+  /**
+   * Kena pukul menurunkan rantai **satu tingkat**, bukan menghapusnya.
+   *
+   * Versi awal mereset ke nol. Terukur: dalam sesi dengan 22 musuh dibasmi,
+   * pengali tidak pernah naik di atas 1 — pemain biasa terlalu sering kena,
+   * jadi fiturnya tidak pernah terasa ada.
+   */
+  DROP_ON_HIT: true,
 } as const;
 
 /** Bonus skor saat menyelesaikan satu wave. */

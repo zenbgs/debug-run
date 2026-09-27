@@ -18,6 +18,7 @@ npm run dev      # buka http://localhost:5173
 ```
 
 ```bash
+npm test         # unit test (vitest)
 npm run build    # typecheck + build produksi ke dist/
 npm run preview  # cek hasil build
 ```
@@ -114,6 +115,20 @@ python tools/pack_assets.py
 Folder `Legacy Collection/` sengaja **tidak** di-commit — ukurannya besar dan hanya
 sebagian kecil yang dipakai. Unduh dari [ansimuz.itch.io](https://ansimuz.itch.io/)
 kalau butuh.
+
+## Tes
+
+```bash
+npm test
+```
+
+Tes menutup **logika murni** yang dulu hanya bisa diverifikasi dengan menyetir
+browser: integritas data (wave menyebut musuh yang ada, tiap skill dipakai satu
+kelas, semua texture terdaftar), generasi arena (seed sama → layout sama, tembok
+tanpa celah, area spawn bersih), dan matematika pengali skor.
+
+Yang **tidak** ditutup tes: apa pun yang butuh Phaser berjalan — tumbukan, input,
+render. Itu masih diverifikasi manual di browser.
 
 ## Catatan development
 

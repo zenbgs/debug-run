@@ -72,11 +72,14 @@ tetap keyboard-only dan konsisten dengan sprite 3-arah yang kita punya (lihat §
 
 ### 5.1 Stat dasar
 
-| Stat | Nilai awal |
-|---|---|
-| HP | 100 |
-| Kecepatan gerak | 110 px/detik |
-| I-frame setelah kena hit | 0.6 detik (sprite berkedip) |
+Angka di bawah adalah **basis**; tiap kelas mengubahnya (lihat §5.2.1).
+
+| Stat | Nilai basis | Catatan |
+|---|---|---|
+| HP | 100 | kelas menimpanya: Warrior 130, Archer 85, Mage 75 |
+| Kecepatan gerak | 110 px/detik | dikali `speedMultiplier` kelas |
+| I-frame setelah kena | **0,75 detik** | sprite berkedip |
+| Knockback saat kena | 150 px/detik selama 0,14 detik | — |
 
 ### 5.2 Serangan & skill
 
@@ -188,7 +191,7 @@ plus drop poin.
 > 27–42 px, **benar-benar tampak-atas**, dan wujudnya memang **serangga** — jauh lebih
 > nyambung dengan tema bug-bashing daripada slime fantasi.
 
-Hanya ada **3 sprite** yang layak, jadi 7 tipe dibuat sebagai varian statistik: tint warna
+Hanya ada **3 sprite** yang layak, jadi 8 tipe dibuat sebagai varian statistik: tint warna
 berbeda plus HP/kecepatan/perilaku berbeda. Nilai di bawah adalah yang benar-benar
 diimplementasi di `src/data/enemies.ts` (terverifikasi di M3).
 

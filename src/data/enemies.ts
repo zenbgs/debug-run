@@ -192,8 +192,6 @@ export const ENEMY_TYPES: readonly EnemyType[] = [
   },
 ];
 
-export const ENEMY_BY_ID = new Map(ENEMY_TYPES.map((type) => [type.id, type]));
-
 /**
  * Perilaku `zigzag`: goyangan menyamping saat mengejar.
  *
