@@ -69,6 +69,8 @@ Terukur mengisi 100% x 100% sebelum maupun sesudah bilah alamat bergerak.
   kemenangan tetap bisa disudahi
 - **Rekor tersimpan per kelas** (skor, wave terjauh) — bertahan antar sesi dan
   tampil di layar judul
+- **Layar judul hidup** — arena sungguhan sebagai latar dengan biome acak tiap
+  kunjungan, musuh berkeliaran, ketiga kelas berjalan, dan logo ber-glitch
 - **8 tipe musuh** dengan 4 perilaku: mengejar, zigzag, menerjang, dan **menembak
   dari jarak jauh** — yang terakhir memaksa kamu bergerak dan memakai rintangan
   arena sebagai perlindungan

@@ -121,8 +121,22 @@ export class CharacterSelectScene extends Phaser.Scene {
       color: '#c9c4d8',
     });
 
+    // Daftar kontrol dipindah ke sini dari layar judul: di sana ia jadi hal
+    // pertama yang dilihat orang — tujuh baris manual sebelum sempat tertarik.
+    // Di sini pemain memang sudah berhenti untuk membaca.
     this.add
-      .text(cx, 258, isTouchDevice() ? 'ketuk kartu untuk memilih' : 'panah kiri/kanan pilih  -  ENTER mulai', {
+      .text(
+        cx,
+        246,
+        isTouchDevice()
+          ? 'stik kiri gerak   J pukul   K L skill   >> dash'
+          : 'WASD gerak   J pukul   K L skill   SPASI dash   ESC jeda',
+        { fontFamily: FONT_FAMILY, fontSize: '6px', color: '#8fd35d' }
+      )
+      .setOrigin(0.5);
+
+    this.add
+      .text(cx, 260, isTouchDevice() ? 'ketuk kartu untuk memilih' : 'panah kiri/kanan pilih  -  ENTER mulai', {
         fontFamily: FONT_FAMILY,
         fontSize: '7px',
         color: '#ffe066',

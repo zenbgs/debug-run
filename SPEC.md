@@ -627,6 +627,30 @@ kosong, bukan lemparan. Dikunci tes.
 Disimpan **di akhir run saja** — saat mati atau saat memilih SUDAHI. Refresh di
 tengah permainan tidak meninggalkan jejak skor separuh jalan.
 
+
+### 8.3 Layar judul
+
+Latarnya **arena sungguhan** — tilemap yang sama persis dengan yang dipakai saat
+bermain, biome acak tiap kunjungan, kamera menggeser menyilang perlahan. Enam
+musuh berkeliaran di belakang, dan ketiga kelas berjalan di tempat di depan.
+
+Versi sebelumnya berupa panel gelap di ruang hitam berisi **tujuh baris daftar
+kontrol**. Itu manual, bukan ajakan bermain, dan tidak memperlihatkan satu pun
+aset game. Daftar kontrol kini pindah ke layar pilih kelas, tempat pemain memang
+sudah berhenti untuk membaca.
+
+**Logo ber-glitch.** Tiga salinan teks: bayangan merah dan biru (blend ADD) plus
+satu utama, dengan pemisahan tipis yang selalu ada dan hentakan tiap ~2,6 detik
+disertai garis sobek. Judulnya "DEBUG RUN" dan lawannya bug, jadi logo yang
+sesekali rusak menyampaikan tema game dalam satu pandangan.
+
+Musuh latar sengaja **bukan** `Enemy` dan tanpa fisika — mereka hiasan, tidak
+boleh menabrak apa pun, dan tidak perlu AI. Sprite polos plus hanyutan sinus
+lebih murah dan tidak bisa membuat layar judul macet.
+
+Peredup gelap 0,62 wajib: tanpa itu teks hijau bertumpuk dengan rumput dan tidak
+terbaca. Terukur 60 fps di Chrome headless.
+
 ---
 
 ## 9. Audio

@@ -227,7 +227,10 @@ hasil.tampilDiJudul = await page.evaluate((src) => {
   if (!judul) return [];
   // eslint-disable-next-line no-new-func
   const teks = new Function('s', `return (${src})(s);`)(judul);
-  return teks.filter((t) => /WARRIOR|MAGE|ARCHER|REKOR/i.test(t));
+  // Hanya baris rekor. Layar judul kini SELALU memuat label kelas
+  // ("WARRIOR", "ARCHER", "MAGE") sebagai etalase karakter, jadi mencocokkan
+  // nama kelas saja akan lolos meski rekornya tidak pernah tersimpan.
+  return teks.filter((t) => /^REKOR/i.test(t));
 }, SEMUA_TEKS);
 await page.screenshot({ path: `${OUT_DIR}/title-records.png` });
 
