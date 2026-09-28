@@ -3,6 +3,9 @@ dist/
 *.local
 .DS_Store
 
+# Screenshot hasil `node tools/verify_biomes.mjs` — dibuat ulang kapan saja.
+tools/verify-out/
+
 # Aset mentah pihak ketiga — besar, dan lisensinya belum diverifikasi.
 # Jangan di-commit sampai status lisensi jelas. (lihat CREDITS.md)
 Legacy Collection/

@@ -437,6 +437,19 @@ sekadar ganti warna. Pemain dipindahkan ke titik spawn (dijamin bebas rintangan)
 karena petak tempatnya berdiri bisa saja baru berubah jadi batu, dan proyektil yang
 masih melayang dibersihkan karena berasal dari peta lama.
 
+**Verifikasi: `node tools/verify_biomes.mjs [url]`** (butuh dev server jalan dan
+`puppeteer` terpasang global). Script ini menjalankan game sungguhan di Chrome
+headless dan membuktikan dua hal yang **tidak bisa** dijangkau unit test:
+
+| Yang dibuktikan | Caranya | Hasil terakhir |
+|---|---|---|
+| Tint benar-benar ter-render | membandingkan **warna piksel** hasil screenshot dengan hasil perkalian yang diharapkan | padang malam: diharapkan (29,44,70), terukur (30,45,70) |
+| Tembok masih menabrak setelah dicat ulang | mendorong pemain ke tembok kiri dan mengukur posisi berhentinya | 38 px di keenam biome (tanpa collider: ~6 px, tepi dunia) |
+
+Angka 38 px itu diskriminatornya: arena dalam mulai di x=32 dan body pemain
+memberi offset 6 px. Kalau `setCollisionByExclusion` tidak dijalankan ulang setelah
+`putTilesAt`, pemain akan menembus tembok dan berhenti di tepi dunia.
+
 ---
 
 ## 8. UI / HUD
