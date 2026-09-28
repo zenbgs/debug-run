@@ -98,6 +98,7 @@ export function addTapZone(
 export function showWaveBanner(
   scene: Phaser.Scene,
   waveNumber: number,
+  /** 0 = tanpa batas; penyebutnya disembunyikan. */
   totalWaves: number,
   label: string,
   durationMs: number,
@@ -105,8 +106,10 @@ export function showWaveBanner(
 ): void {
   const panel = createPanel(scene, 260, 48, scene.scale.height / 2 - 30);
 
+  // `totalWaves: 0` berarti mode tanpa batas — tidak ada penyebut untuk ditulis.
   addText(scene, panel, scene.scale.width / 2, scene.scale.height / 2 - 40,
-    `WAVE ${waveNumber} / ${totalWaves}`, { size: 10, color: '#ffe066' });
+    totalWaves > 0 ? `WAVE ${waveNumber} / ${totalWaves}` : `WAVE ${waveNumber}`,
+    { size: 10, color: '#ffe066' });
   addText(scene, panel, scene.scale.width / 2, scene.scale.height / 2 - 24,
     isBossWave ? `BOSS - ${label}` : label,
     { size: 7, color: isBossWave ? '#ff8a7a' : '#c9c4d8' });

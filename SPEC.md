@@ -367,6 +367,49 @@ Penanganannya dua lapis di `Enemy.applyUnstick()`: meluncur menyusuri tembok, la
 pengaman yang mendorong paksa musuh melewati rintangan setelah 1,2 detik tanpa gerak.
 **Jangan hapus lapis kedua** — tanpa itu satu musuh nyangkut mengunci seluruh sesi.
 
+
+### 6.2 Mode tanpa batas
+
+Kampanye berhenti di wave 10, jadi skor tertinggi yang mungkin dicapai ditentukan
+oleh naskah, bukan oleh keterampilan. Setelah cerita penutup, pemain memilih:
+
+- **SUDAHI** — rekor disimpan, layar skor seperti biasa
+- **LANJUT** — wave dibangkitkan terus sampai pemain mati
+
+Ditanyakan, bukan digelindingkan otomatis: kalau permainan langsung lanjut ke
+wave 11, tamatnya kehilangan arti.
+
+Kurvanya di `src/data/endless.ts`, dan **monoton** — jumlah musuh dan `maxAlive`
+tidak pernah turun, jeda spawn tidak pernah naik. Kesulitan yang naik-turun
+membuat pemain merasa dicurangi saat run bagus berakhir di wave yang lebih mudah.
+
+| Parameter | Rumus | Batas |
+|---|---|---|
+| jumlah musuh | `8 + floor(d * 1.6)` | 26 |
+| `maxAlive` | `12 + floor(d / 2)` | 18 |
+| `spawnIntervalMs` | `550 - d * 15` | min 260 |
+| `statScale` | `1 + d * 0.06` | — |
+| boss | tiap kelipatan 5 | 2 boss bergantian |
+
+`d` = tingkat, 1 untuk wave 11. Upgrade **tetap ditawarkan** antar wave tanpa
+batas; tanpa itu pemain berhenti berkembang tepat saat musuh mulai menebal.
+
+⚠️ **`WaveManager.currentWave` dibaca tiap frame.** Wave bangkitan disimpan di
+field, bukan dihitung di getter — kalau tidak, `buildEndlessWave()` berjalan 60
+kali per detik dan membuang objek wave sebanyak itu juga.
+
+⚠️ **`statScale` diterapkan dengan meng-klon `EnemyType`, bukan mengubahnya di
+tempat.** `SPAWNABLE_BY_ID` dipakai bersama seluruh game; menaikkan HP-nya
+langsung akan merembet ke wave berikutnya dan bertahan sampai setelah restart.
+Klonnya dimemo berkunci `${id}:${scale}` supaya tidak mengalokasi tiap spawn.
+
+Biome ikut berputar untuk wave > 10 (`biomeForWave`). Sebelumnya jatuh ke
+`BIOMES[0]`, yang berarti seluruh mode tanpa batas — bagian terpanjang dari
+sebuah run — dimainkan di padang rumput yang sama.
+
+Terukur di Chrome headless (`node tools/verify_endless.mjs`): HP glitchling
+32 → 34 → 37 → 39 → 48 di wave 11 → 20, cocok persis dengan `30 x statScale`.
+
 ---
 
 ## 7. Arena & visual
@@ -562,6 +605,27 @@ datang belakangan.
 
 ⚠️ Press Start 2P **jauh lebih lebar** daripada monospace bawaan pada ukuran px yang sama.
 Saat menggantinya, seluruh panel harus diukur ulang — teks langsung meluber keluar bingkai.
+
+
+### 8.2 Rekor tersimpan
+
+`src/systems/Records.ts`. Skor, wave terjauh, rantai terbaik, dan jumlah kill
+terbaik **per kelas**, bertahan antar sesi lewat `localStorage`. Tampil di layar
+judul (kelas yang belum dimainkan dilewati) dan sebagai pembanding di layar akhir.
+
+Logika penggabungan murni dan terpisah dari penyimpanan, seperti `ScoreStreak.ts`.
+Tiap medan diambil **maksimumnya sendiri-sendiri**: run yang mencapai wave 14
+dengan skor rendah tetap berhak atas "wave terjauh 14". `pecahRekor` hanya dari
+**skor** — mengumumkan rekor baru karena jumlah kill naik satu membuat labelnya
+tidak berarti.
+
+⚠️ **Data tersimpan tidak boleh sanggup mematikan game.** Kunci ber-versi
+(`debug-run:records:v1`); JSON rusak, versi lain, entri setengah jadi, atau
+`localStorage` yang melempar (Safari mode privat) semuanya menghasilkan rekor
+kosong, bukan lemparan. Dikunci tes.
+
+Disimpan **di akhir run saja** — saat mati atau saat memilih SUDAHI. Refresh di
+tengah permainan tidak meninggalkan jejak skor separuh jalan.
 
 ---
 

@@ -64,6 +64,11 @@ Terukur mengisi 100% x 100% sebelum maupun sesudah bilah alamat bergerak.
 ## Isi permainan
 
 - **10 wave** dengan kurva kesulitan menanjak, plus **2 boss** di wave 5 dan 10
+- **Mode tanpa batas** setelah tamat — wave dibangkitkan terus dengan musuh yang
+  makin tebal dan boss tiap 5 wave, sampai kamu mati. Ditawarkan, bukan dipaksa:
+  kemenangan tetap bisa disudahi
+- **Rekor tersimpan per kelas** (skor, wave terjauh) — bertahan antar sesi dan
+  tampil di layar judul
 - **8 tipe musuh** dengan 4 perilaku: mengejar, zigzag, menerjang, dan **menembak
   dari jarak jauh** — yang terakhir memaksa kamu bergerak dan memakai rintangan
   arena sebagai perlindungan
@@ -153,8 +158,9 @@ Yang butuh Phaser berjalan diverifikasi oleh dua skrip yang menjalankan game
 sungguhan di Chrome headless (butuh dev server jalan dan `puppeteer` global):
 
 ```bash
-node tools/verify_biomes.mjs http://localhost:5173/   # tint & tabrakan tiap biome
-node tools/verify_touch.mjs  http://localhost:5173/   # stik, multi-sentuh, jeda
+node tools/verify_biomes.mjs  http://localhost:5173/   # tint & tabrakan tiap biome
+node tools/verify_touch.mjs   http://localhost:5173/   # stik, multi-sentuh, jeda
+node tools/verify_endless.mjs http://localhost:5173/   # kurva tanpa batas & rekor
 ```
 
 Keduanya mengukur, bukan mengintip: `verify_biomes` membandingkan warna piksel

@@ -24,6 +24,7 @@ import { audio } from '../systems/Audio';
 import { BossAttacks } from '../systems/BossAttacks';
 import { CombatSystem } from '../systems/CombatSystem';
 import { DamageNumbers } from '../systems/DamageNumbers';
+import { commitRun, type RecordEntry } from '../systems/Records';
 import { ScoreStreak } from '../systems/ScoreStreak';
 import { DialogueBox } from '../systems/DialogueBox';
 import { createFxAnimations, playFx } from '../systems/Fx';
@@ -124,6 +125,12 @@ export class GameScene extends Phaser.Scene {
   /** Musuh yang sudah terkena dash ini; dikosongkan saat dash selesai. */
   private readonly dashHitIds = new Set<Enemy>();
 
+  /** Rekor hanya boleh dicatat sekali per run. */
+  private runTercatat = false;
+  /** Rekor kelas ini SEBELUM run berjalan, untuk dibandingkan di layar akhir. */
+  private rekorSebelumnya?: RecordEntry;
+  private pecahRekor = false;
+
   constructor() {
     super('Game');
   }
@@ -144,6 +151,9 @@ export class GameScene extends Phaser.Scene {
     this.activeBoss = undefined;
     this.bossBar = undefined;
     this.bossLabel = undefined;
+    this.runTercatat = false;
+    this.rekorSebelumnya = undefined;
+    this.pecahRekor = false;
 
     this.biome = biomeForWave(1);
     const arena = buildArena(TILE, undefined, this.biome);
@@ -431,7 +441,7 @@ export class GameScene extends Phaser.Scene {
     showWaveBanner(
       this,
       wave.number,
-      WAVES.length,
+      this.waves?.totalWaves ?? WAVES.length,
       `${wave.label} — ${this.biome.name}`,
       WAVE_TIMING.INTRO_MS,
       wave.isBossWave === true
@@ -463,8 +473,9 @@ export class GameScene extends Phaser.Scene {
     this.score += waveClearBonus(wave.number);
     audio.play('waveClear');
 
-    // Setelah wave terakhir tidak ada gunanya menawarkan upgrade — langsung menang.
-    if (wave.number >= WAVES.length) {
+    // Wave terakhir kampanye langsung menuju layar kemenangan, tanpa upgrade.
+    // Di mode tanpa batas tidak ada "wave terakhir", jadi upgrade tetap ditawarkan.
+    if (wave.number >= this.waves.scriptedWaves && !this.waves.isEndless) {
       this.waves.advanceToNextWave();
       return;
     }
@@ -777,13 +788,46 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Kebalikan `freezeEverything()`, dipakai saat pemain memilih lanjut ke mode
+   * tanpa batas. Hanya pemain yang perlu dipulihkan: wave baru saja bersih, jadi
+   * tidak ada musuh yang tersisa untuk dibangunkan.
+   */
+  private unfreezeEverything(): void {
+    const playerBody = this.player.body as Phaser.Physics.Arcade.Body;
+    playerBody.moves = true;
+  }
+
   private onPlayerDied(): void {
     if (this.state === 'gameover' || this.state === 'victory') return;
     this.state = 'gameover';
     this.upgradePanel.close();
     this.freezeEverything();
     audio.play('gameOver');
+    this.catatRun();
     this.showEndPanel('KALAH', '#ff8a7a');
+  }
+
+  /**
+   * Catat hasil run ke rekor tersimpan. Dipanggil sekali di akhir run —
+   * saat mati atau saat pemain memilih menyudahi setelah menang.
+   *
+   * Sengaja TIDAK dipanggil per wave: refresh di tengah permainan tidak boleh
+   * meninggalkan jejak skor separuh jalan.
+   */
+  private catatRun(): void {
+    if (this.runTercatat) return;
+    this.runTercatat = true;
+
+    const hasil = commitRun(this.player.playerClass.id, {
+      score: this.score,
+      wave: this.waves.waveNumber,
+      bestChain: this.streak.best,
+      kills: this.kills,
+      endless: this.waves.isEndless,
+    });
+    this.rekorSebelumnya = hasil.sebelumnya;
+    this.pecahRekor = hasil.pecahRekor;
   }
 
   private onVictory(): void {
@@ -791,16 +835,76 @@ export class GameScene extends Phaser.Scene {
     this.upgradePanel.close();
     this.freezeEverything();
     audio.play('victory');
-    // Cerita penutup dulu, baru layar skor.
+    // Cerita penutup dulu, baru pilihan: sudahi, atau lanjut tanpa batas.
     this.dialogue.play(STORY_VICTORY, () => {
-      this.showEndPanel('SEMUA WAVE SELESAI', '#8fd35d');
+      this.showVictoryChoice();
+    });
+  }
+
+  /**
+   * Panel setelah kampanye tamat.
+   *
+   * Kemenangan harus tetap terasa sebagai kemenangan — kalau permainan langsung
+   * menggelinding ke wave 11 tanpa ditanya, tamatnya kehilangan arti. Pengejar
+   * skor tetap punya jalan lewat pilihan kedua.
+   */
+  private showVictoryChoice(): void {
+    const cx = this.scale.width / 2;
+    const cy = this.scale.height / 2;
+    const panel = createPanel(this, 300, 96);
+
+    addText(this, panel, cx, cy - 34, 'SEMUA WAVE SELESAI', { size: 10, color: '#8fd35d' });
+    addText(this, panel, cx, cy - 16, `skor ${this.score}`, { size: 7, color: '#e8e4f0' });
+
+    const pilih = (lanjut: boolean) => {
+      panel.destroy();
+      if (!lanjut) {
+        this.catatRun();
+        this.showEndPanel('SEMUA WAVE SELESAI', '#8fd35d');
+        return;
+      }
+      this.waves.enableEndless();
+      this.state = 'playing';
+      this.physics.world.resume();
+      this.unfreezeEverything();
+    };
+
+    addText(this, panel, cx, cy + 6, 'LANJUT - TANPA BATAS', { size: 8, color: '#ffe066' });
+    addTapZone(this, panel, cx, cy + 6, 280, 18, () => pilih(true));
+
+    addText(this, panel, cx, cy + 28, 'SUDAHI - SIMPAN SKOR', { size: 8, color: '#c9c4d8' });
+    addTapZone(this, panel, cx, cy + 28, 280, 18, () => pilih(false));
+
+    addText(
+      this,
+      panel,
+      cx,
+      cy + 42,
+      isTouchDevice() ? 'ketuk pilihan' : '[1] lanjut    [2] sudahi',
+      { size: 6, color: '#8fd35d' }
+    );
+
+    const keyboard = this.input.keyboard;
+    const satu = keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
+    const dua = keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.TWO);
+    const bersihkan = () => {
+      satu?.removeAllListeners();
+      dua?.removeAllListeners();
+    };
+    satu?.once('down', () => {
+      bersihkan();
+      pilih(true);
+    });
+    dua?.once('down', () => {
+      bersihkan();
+      pilih(false);
     });
   }
 
   private showEndPanel(title: string, color: string): void {
-    const panel = createPanel(this, 300, 100);
+    const panel = createPanel(this, 300, 112);
     const cx = this.scale.width / 2;
-    const top = this.scale.height / 2 - 46;
+    const top = this.scale.height / 2 - 52;
 
     addText(this, panel, cx, top + 16, title, { size: 10, color });
     addText(
@@ -817,6 +921,20 @@ export class GameScene extends Phaser.Scene {
       ].join('\n'),
       { size: 7, color: '#e8e4f0' }
     );
+    // Rekor sebelumnya jadi pembanding; tanpa itu skor akhir cuma angka lepas.
+    if (this.pecahRekor) {
+      addText(this, panel, cx, top + 70, 'REKOR BARU', { size: 8, color: '#ffe066' });
+    } else if (this.rekorSebelumnya) {
+      addText(
+        this,
+        panel,
+        cx,
+        top + 70,
+        `terbaik: ${this.rekorSebelumnya.score} (wave ${this.rekorSebelumnya.wave})`,
+        { size: 6, color: '#8fd35d' }
+      );
+    }
+
     addText(this, panel, cx, top + 84, this.touch ? 'ketuk untuk ulang' : 'tekan R untuk ulang', {
       size: 7,
       color: '#ffe066',
@@ -824,7 +942,7 @@ export class GameScene extends Phaser.Scene {
 
     // Seluruh panel bisa diketuk. Di ponsel tidak ada tombol R, dan layar akhir
     // yang tidak bisa dilanjutkan berarti game-nya buntu total di sana.
-    addTapZone(this, panel, cx, this.scale.height / 2, 300, 100, () => {
+    addTapZone(this, panel, cx, this.scale.height / 2, 300, 112, () => {
       if (this.state === 'gameover' || this.state === 'victory') this.scene.restart();
     });
   }
@@ -1040,9 +1158,14 @@ export class GameScene extends Phaser.Scene {
     const dash = dashDetik ? `[SPC]${dashDetik}s` : '[SPC]Dash';
     const pengali = this.streak.current > 1 ? `  x${this.streak.current}` : '';
 
+    // totalWaves 0 = mode tanpa batas; "WAVE 13/10" jelas salah.
+    const wave = this.waves.totalWaves
+      ? `WAVE ${this.waves.waveNumber}/${this.waves.totalWaves}`
+      : `WAVE ${this.waves.waveNumber} ~`;
+
     this.hudText.setText(
       `${hp}/${this.player.maxHealth}   ` +
-        `WAVE ${this.waves.waveNumber}/${this.waves.totalWaves}   ` +
+        `${wave}   ` +
         `sisa ${sisa}   skor ${this.score}${pengali}
 ${skills}  ${dash}`
     );

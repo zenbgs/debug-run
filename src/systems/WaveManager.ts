@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { isBossType, SPAWNABLE_BY_ID } from '../data/bosses';
 import { SPAWNER, type EnemyType } from '../data/enemies';
+import { buildEndlessWave } from '../data/endless';
 import { WAVES, WAVE_TIMING, type Wave } from '../data/waves';
 import { Enemy } from '../entities/Enemy';
 
@@ -21,11 +22,14 @@ export type WaveManagerCallbacks = {
 export type ArenaSize = { width: number; height: number };
 
 /**
- * Menjalankan 10 wave berjadwal. (SPEC.md §6.1)
+ * Menjalankan wave. (SPEC.md §6.1, §6.2)
  *
  * Siklus per wave: intro (banner) → spawning (musuh keluar bertahap) →
  * clearing (menunggu sisa musuh habis) → awaiting-upgrade (GameScene menampilkan
  * pilihan upgrade, manager berhenti) → wave berikutnya.
+ *
+ * Sepuluh wave pertama bernaskah (`WAVES`). Sesudahnya, kalau `enableEndless()`
+ * sudah dipanggil, wave dibangkitkan `buildEndlessWave()` tanpa henti.
  */
 export class WaveManager {
   private state: WaveState = 'intro';
@@ -34,6 +38,23 @@ export class WaveManager {
   private spawnTimer = 0;
   /** Sisa musuh yang belum dikeluarkan pada wave berjalan. */
   private queue: string[] = [];
+
+  /**
+   * Wave yang sedang berjalan, DISIMPAN — bukan dihitung ulang di getter.
+   *
+   * `currentWave` dibaca `update()` tiap frame. Kalau wave tanpa batas
+   * dibangkitkan di dalam getter, `buildEndlessWave()` akan berjalan 60 kali per
+   * detik dan membuang objek wave sebanyak itu juga.
+   */
+  private wave: Wave = WAVES[0];
+
+  private endless = false;
+
+  /**
+   * Cache tipe musuh yang sudah diskalakan, berkunci `${id}:${scale}`.
+   * Tanpa ini tiap spawn mengalokasikan objek `EnemyType` baru.
+   */
+  private readonly skalaCache = new Map<string, EnemyType>();
 
   constructor(
     private readonly arena: ArenaSize,
@@ -57,7 +78,26 @@ export class WaveManager {
   }
 
   get currentWave(): Wave {
-    return WAVES[Math.min(this.waveIndex, WAVES.length - 1)];
+    return this.wave;
+  }
+
+  /** Jumlah wave bernaskah. Dipakai banner "WAVE n / 10". */
+  get scriptedWaves(): number {
+    return WAVES.length;
+  }
+
+  /** Sudah melewati kampanye dan masuk mode tanpa batas. */
+  get isEndless(): boolean {
+    return this.endless && this.waveIndex >= WAVES.length;
+  }
+
+  /**
+   * Lanjutkan setelah kampanye selesai. Dipanggil GameScene saat pemain memilih
+   * "LANJUT" di panel kemenangan.
+   */
+  enableEndless(): void {
+    this.endless = true;
+    if (this.state === 'finished') this.beginWave(WAVES.length);
   }
 
   get currentState(): WaveState {
@@ -68,8 +108,9 @@ export class WaveManager {
     return this.currentWave.number;
   }
 
+  /** 0 berarti tanpa batas — dipakai HUD dan banner untuk menyembunyikan penyebut. */
   get totalWaves(): number {
-    return WAVES.length;
+    return this.isEndless ? 0 : WAVES.length;
   }
 
   /** Sisa musuh wave ini yang belum keluar. */
@@ -81,9 +122,15 @@ export class WaveManager {
     return this.state === 'finished';
   }
 
+  /** Wave ke-`index` (0-based): dari naskah, atau dibangkitkan kalau sudah lewat. */
+  private resolveWave(index: number): Wave {
+    return index < WAVES.length ? WAVES[index] : buildEndlessWave(index + 1);
+  }
+
   private beginWave(index: number): void {
     this.waveIndex = index;
-    const wave = WAVES[index];
+    const wave = this.resolveWave(index);
+    this.wave = wave;
 
     // Kembangkan entri jadi daftar id, lalu diacak supaya tipe tidak keluar berkelompok.
     const list: string[] = [];
@@ -107,7 +154,10 @@ export class WaveManager {
   /** Dipanggil GameScene setelah pemain memilih upgrade. */
   advanceToNextWave(): void {
     if (this.state !== 'awaiting-upgrade') return;
-    if (this.waveIndex + 1 >= WAVES.length) {
+
+    // Akhir kampanye. Tanpa mode tanpa batas, run berhenti di sini; `onAllWavesCleared`
+    // hanya boleh menyala sekali, dan `state = 'finished'` menjaminnya.
+    if (this.waveIndex + 1 >= WAVES.length && !this.endless) {
       this.state = 'finished';
       this.callbacks.onAllWavesCleared();
       return;
@@ -150,9 +200,37 @@ export class WaveManager {
     return type !== undefined && isBossType(type);
   }
 
+  /**
+   * Tipe musuh dengan stat wave tanpa batas diterapkan.
+   *
+   * Meng-klon, bukan mengubah objek aslinya: `SPAWNABLE_BY_ID` dipakai bersama
+   * seluruh game, dan menaikkan HP-nya di tempat akan merembet ke wave berikutnya
+   * dan ke sesi setelah restart. Hasilnya dimemo supaya tidak mengalokasikan
+   * objek baru tiap spawn.
+   */
+  private scaledType(type: EnemyType, scale: number): EnemyType {
+    if (scale === 1) return type;
+
+    const kunci = `${type.id}:${scale}`;
+    const cached = this.skalaCache.get(kunci);
+    if (cached) return cached;
+
+    const klon: EnemyType = {
+      ...type,
+      hp: Math.round(type.hp * scale),
+      contactDamage: Math.round(type.contactDamage * scale),
+      // Skor ikut naik: musuh yang lebih tebal harus lebih berharga, kalau tidak
+      // mode tanpa batas justru memberi poin per detik yang makin sedikit.
+      score: Math.round(type.score * scale),
+    };
+    this.skalaCache.set(kunci, klon);
+    return klon;
+  }
+
   private spawnOne(camera: Phaser.Cameras.Scene2D.Camera): void {
     const typeId = this.queue[0];
-    const type = SPAWNABLE_BY_ID.get(typeId);
+    const dasar = SPAWNABLE_BY_ID.get(typeId);
+    const type = dasar ? this.scaledType(dasar, this.wave.statScale ?? 1) : undefined;
     if (!type) {
       // validateWaves() sudah menjamin ini tidak terjadi; buang saja kalau toh terjadi.
       this.queue.shift();

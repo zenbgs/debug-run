@@ -21,6 +21,13 @@ export type Wave = {
   maxAlive: number;
   /** Wave yang memuat boss. Dipakai banner dan bar HP boss. */
   isBossWave?: boolean;
+  /**
+   * Pengali stat musuh wave ini (HP, damage kontak, dan skor). 1 = normal.
+   *
+   * Hanya dipakai mode tanpa batas: wave bernaskah menaikkan kesulitan lewat
+   * komposisi musuh, bukan lewat angka. Diterapkan `WaveManager.spawnOne()`.
+   */
+  statScale?: number;
 };
 
 export const WAVES: readonly Wave[] = [

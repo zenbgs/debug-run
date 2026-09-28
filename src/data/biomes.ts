@@ -161,7 +161,19 @@ export const BIOME_BY_WAVE: Readonly<Record<number, string>> = {
   10: 'kekosongan',
 };
 
+/**
+ * Biome untuk sebuah nomor wave.
+ *
+ * Wave di luar peta (mode tanpa batas, wave 11 ke atas) **memutar** seluruh
+ * daftar biome. Versi sebelumnya jatuh ke `BIOMES[0]`, yang berarti seluruh mode
+ * tanpa batas — bagian terpanjang dari sebuah run — dimainkan di padang rumput
+ * yang sama persis.
+ */
 export function biomeForWave(waveNumber: number): Biome {
   const id = BIOME_BY_WAVE[waveNumber];
-  return (id ? BIOME_BY_ID.get(id) : undefined) ?? BIOMES[0];
+  const bernaskah = id ? BIOME_BY_ID.get(id) : undefined;
+  if (bernaskah) return bernaskah;
+
+  const indeks = Math.max(0, Math.floor(waveNumber) - 1) % BIOMES.length;
+  return BIOMES[indeks];
 }
