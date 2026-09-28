@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { UPGRADES, UPGRADE_CHOICES, type Upgrade } from '../data/upgrades';
+import type { AttackStyle } from '../data/classes';
+import { RARITY_WEIGHT, UPGRADES, UPGRADE_CHOICES, type Upgrade } from '../data/upgrades';
 import { addText, createPanel, type PanelHandle, addTapZone } from './Ui';
 
 /**
@@ -17,21 +18,50 @@ export class UpgradePanel {
   }
 
   /**
-   * Pilih 3 upgrade acak yang belum mentok batas stack-nya.
+   * Pilih 3 upgrade yang belum mentok batas stack-nya dan cocok untuk kelas ini.
+   *
+   * Pengundiannya **berbobot**, bukan acak rata: upgrade `langka` yang menentukan
+   * build harus terasa seperti temuan. Kalau bobotnya sama, ia muncul di hampir
+   * tiap tawaran dan kehilangan bobot keputusannya.
+   *
    * Kalau kandidat kurang dari 3, tampilkan seadanya — tidak diisi duplikat.
    */
-  private rollChoices(taken: Map<string, number>): Upgrade[] {
-    const eligible = UPGRADES.filter((upgrade) => {
-      if (upgrade.maxStacks === undefined) return true;
-      return (taken.get(upgrade.id) ?? 0) < upgrade.maxStacks;
+  private rollChoices(taken: Map<string, number>, gaya: AttackStyle): Upgrade[] {
+    const kandidat = UPGRADES.filter((u) => {
+      // Upgrade khusus gaya lain adalah pilihan mati; menawarkannya memangkas
+      // tawaran dari 3 jadi efektif 2.
+      if (u.onlyFor !== undefined && u.onlyFor !== gaya) return false;
+      if (u.maxStacks === undefined) return true;
+      return (taken.get(u.id) ?? 0) < u.maxStacks;
     });
-    return Phaser.Utils.Array.Shuffle([...eligible]).slice(0, UPGRADE_CHOICES);
+
+    const terpilih: Upgrade[] = [];
+    const sisa = [...kandidat];
+    while (terpilih.length < UPGRADE_CHOICES && sisa.length > 0) {
+      const total = sisa.reduce((n, u) => n + RARITY_WEIGHT[u.rarity ?? 'umum'], 0);
+      let undi = Math.random() * total;
+      let index = sisa.length - 1;
+      for (let i = 0; i < sisa.length; i++) {
+        undi -= RARITY_WEIGHT[sisa[i].rarity ?? 'umum'];
+        if (undi <= 0) {
+          index = i;
+          break;
+        }
+      }
+      terpilih.push(sisa[index]);
+      sisa.splice(index, 1);
+    }
+    return terpilih;
   }
 
-  open(taken: Map<string, number>, onPick: (upgrade: Upgrade) => void): void {
+  open(
+    taken: Map<string, number>,
+    gaya: AttackStyle,
+    onPick: (upgrade: Upgrade) => void
+  ): void {
     this.close();
 
-    const choices = this.rollChoices(taken);
+    const choices = this.rollChoices(taken, gaya);
     if (choices.length === 0) {
       // Semua upgrade sudah mentok — lanjut tanpa menahan permainan.
       onPick_nothing(onPick);

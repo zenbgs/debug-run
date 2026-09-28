@@ -93,7 +93,8 @@ export class PlayerProjectiles {
     const proyektil = kelas.projectile;
     if (!proyektil) return;
 
-    const jumlah = payload.projectileCount ?? 1;
+    // Upgrade "Tembakan Pecah" menambah proyektil di atas jumlah bawaan serangan.
+    const jumlah = (payload.projectileCount ?? 1) + player.stats.projectileBonus;
     const dasar = facingAngle(payload.facing);
     const damage = payload.step.damage * player.stats.damageMultiplier * kelas.damageMultiplier;
 
@@ -103,7 +104,8 @@ export class PlayerProjectiles {
         speed: proyektil.speed,
         range: proyektil.range,
         damage,
-        pierce: false,
+        // Upgrade "Tembakan Tembus".
+        pierce: player.stats.piercing,
       });
     }
     audio.play('swing');

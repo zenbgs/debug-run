@@ -237,7 +237,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     this.dashUntil = now + DASH.DURATION_MS;
-    this.dashReadyAt = now + DASH.COOLDOWN_MS * this.playerClass.dashCooldownMultiplier;
+    // Pengali kelas DAN pengali upgrade — keduanya berlaku bersamaan.
+    this.dashReadyAt =
+      now +
+      DASH.COOLDOWN_MS *
+        this.playerClass.dashCooldownMultiplier *
+        this.stats.dashCooldownMultiplier;
     this.dashNextAfterimageAt = 0;
 
     // Pasang kecepatan SEKARANG juga, jangan menunggu frame berikutnya: frame
@@ -356,7 +361,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const windupMs = skill.kind === 'hitbox' ? skill.step.windupMs : skill.windupMs;
     const recoveryMs = skill.kind === 'hitbox' ? skill.step.recoveryMs : skill.recoveryMs;
 
-    this.skillReadyAt.set(id, now + skill.cooldownMs * this.playerClass.skillCooldownMultiplier);
+    this.skillReadyAt.set(
+      id,
+      now +
+        skill.cooldownMs *
+          this.playerClass.skillCooldownMultiplier *
+          this.stats.skillCooldownMultiplier
+    );
     this.recoveryUntil = now + recoveryMs * this.stats.recoveryMultiplier;
     audio.play('swing');
 

@@ -329,6 +329,35 @@ export class GameScene extends Phaser.Scene {
 
     // Dipanggil setelah cache dibatalkan supaya ledakan melihat daftar terbaru.
     this.applyDeathBlast(enemy.x, enemy.y, enemy);
+    this.applyChainSpark(enemy.x, enemy.y, enemy);
+  }
+
+  /**
+   * Upgrade "Percik Rantai": musuh yang mati menyambar SATU musuh terdekat.
+   *
+   * Sengaja satu, bukan semua dalam radius — kalau menyambar semua, ia menumpuk
+   * dengan "Ledakan Akhir" jadi satu kematian membersihkan layar, dan dua
+   * upgrade berbeda terasa seperti hal yang sama.
+   */
+  private applyChainSpark(x: number, y: number, kecuali: Enemy): void {
+    const damage = this.player.stats.chainDamage;
+    if (damage <= 0) return;
+
+    let terdekat: Enemy | undefined;
+    let jarakTerdekat: number = UPGRADE_FX.CHAIN_RADIUS;
+    for (const musuh of this.aliveEnemies) {
+      if (musuh === kecuali || !musuh.isAlive) continue;
+      const jarak = Phaser.Math.Distance.Between(x, y, musuh.x, musuh.y);
+      if (jarak < jarakTerdekat) {
+        jarakTerdekat = jarak;
+        terdekat = musuh;
+      }
+    }
+    if (!terdekat) return;
+
+    playFx(this, SHEETS.FX_ELECTRO_SHOCK.key, terdekat.x, terdekat.y, { scale: 0.4 });
+    this.damageNumbers.show(terdekat.x, terdekat.y, damage, 'hit');
+    if (terdekat.takeDamage(damage, 0, 0)) this.registerKill(terdekat);
   }
 
   /** Rantai turun satu tingkat saat pemain kena. */
@@ -337,6 +366,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onWaveStart(wave: Wave): void {
+    // Upgrade "Kotak P3K": pulih sedikit tiap wave baru dimulai.
+    if (this.player.stats.waveHeal > 0) this.player.heal(this.player.stats.waveHeal);
+
     // Peta diganti SEBELUM banner dan sebelum musuh keluar, supaya pemain melihat
     // tempat barunya bersamaan dengan nama wave-nya.
     // Wave 1 dilewati: `create()` sudah membangun arena untuk biome-nya.
@@ -392,7 +424,9 @@ export class GameScene extends Phaser.Scene {
 
   private openUpgradePanel(): void {
     this.state = 'upgrade';
-    this.upgradePanel.open(this.takenUpgrades, (upgrade) => this.onUpgradePicked(upgrade));
+    this.upgradePanel.open(this.takenUpgrades, this.player.playerClass.attackStyle, (upgrade) =>
+      this.onUpgradePicked(upgrade)
+    );
   }
 
   private onUpgradePicked(upgrade: Upgrade): void {

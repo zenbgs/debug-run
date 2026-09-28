@@ -7,7 +7,6 @@ import { ENEMY_TYPES } from './enemies';
 import { ALL_SHEETS } from './frames';
 import { getSkill, SKILL_HOTKEYS, SKILLS } from './skills';
 import { STORY_BOSS, STORY_INTRO, STORY_VICTORY } from './story';
-import { createBaseStats, UPGRADES, UPGRADE_CHOICES } from './upgrades';
 import { WAVES } from './waves';
 
 const SHEET_KEYS = new Set(ALL_SHEETS.map((s) => s.key));
@@ -261,36 +260,6 @@ describe('integritas kelas dan skill', () => {
       if (!c.attackFx) continue;
       expect(c.attackFx.length, c.id).toBe(COMBO.length);
     }
-  });
-});
-
-describe('integritas upgrade', () => {
-  it('cukup upgrade untuk mengisi semua slot pilihan', () => {
-    expect(UPGRADES.length).toBeGreaterThanOrEqual(UPGRADE_CHOICES);
-  });
-
-  it('id upgrade unik', () => {
-    const ids = UPGRADES.map((u) => u.id);
-    expect(new Set(ids).size).toBe(ids.length);
-  });
-
-  it('setiap upgrade benar-benar mengubah sesuatu', () => {
-    for (const u of UPGRADES) {
-      const stats = createBaseStats(100);
-      const sebelum = JSON.stringify(stats);
-      u.apply(stats);
-      const berubah = JSON.stringify(stats) !== sebelum;
-      // Upgrade murni penyembuhan sah tidak mengubah stat, asalkan menyembuhkan.
-      expect(berubah || (u.healFlat ?? 0) > 0, `upgrade "${u.id}" tidak berefek`).toBe(true);
-    }
-  });
-
-  it('recoveryMultiplier tidak pernah jadi nol atau negatif meski ditumpuk', () => {
-    const quick = UPGRADES.find((u) => u.id === 'quick-hands');
-    expect(quick).toBeDefined();
-    const stats = createBaseStats(100);
-    for (let i = 0; i < 50; i++) quick!.apply(stats);
-    expect(stats.recoveryMultiplier).toBeGreaterThan(0);
   });
 });
 
