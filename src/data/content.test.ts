@@ -231,6 +231,31 @@ describe('integritas kelas dan skill', () => {
     }
   });
 
+  it('deskripsi kelas tidak dipenggal manual — word-wrap yang mengaturnya', () => {
+    // Aturan yang sama seperti naskah di story.ts. Dulu Warrior dan Archer
+    // dipenggal manual sementara Mage tidak, dan panel detailnya belum punya
+    // word-wrap sama sekali: deskripsi Mage terukur melebar 756 px di layar
+    // 480 px dan meluber keluar di kedua sisi.
+    for (const c of PLAYER_CLASSES) {
+      expect(c.description.includes('\n'), `${c.id}: "${c.description.slice(0, 40)}..."`).toBe(
+        false
+      );
+      expect(c.title.includes('\n'), c.id).toBe(false);
+    }
+  });
+
+  it('teks kartu cukup pendek untuk muat di kartu tersempit', () => {
+    // Lebar logis tersempit 420 px -> kartu ~126 px -> area teks ~114 px.
+    // Press Start 2P pada 6 px memakan ~6 px per karakter, jadi ~19 karakter.
+    const MAKS_KARAKTER = 19;
+    for (const c of PLAYER_CLASSES) {
+      for (const h of c.highlights) {
+        expect(h.length, `${c.id}: "${h}"`).toBeLessThanOrEqual(MAKS_KARAKTER);
+      }
+      expect(c.title.length, `${c.id} judul`).toBeLessThanOrEqual(MAKS_KARAKTER);
+    }
+  });
+
   it('jumlah entri attackFx cocok dengan panjang combo', () => {
     for (const c of PLAYER_CLASSES) {
       if (!c.attackFx) continue;

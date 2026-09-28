@@ -49,6 +49,15 @@ export type PlayerClass = {
   name: string;
   /** Julukan pendek untuk layar pilih karakter. */
   title: string;
+  /**
+   * Kalimat panjang untuk panel detail di layar pilih kelas.
+   *
+   * ⚠️ **Jangan dipenggal manual** dengan baris baru. Panel itu memakai
+   * word-wrap, dan mencampur keduanya menghasilkan baris yatim — aturan yang
+   * sama seperti naskah di `story.ts`. Dulu Warrior dan Archer dipenggal manual
+   * sementara Mage tidak, dan karena panelnya belum punya word-wrap, deskripsi
+   * Mage terukur melebar 756 px di layar 480 px: meluber keluar di kedua sisi.
+   */
   description: string;
   texture: string;
   attackStyle: AttackStyle;
@@ -94,7 +103,8 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
     name: 'Warrior',
     title: 'Penjaga Barisan',
     description:
-      'Tebal, kuat, dan bertarung rapat. Pukulannya melempar bug jauh-jauh,\nsehingga ia bisa berdiri di tengah kerumunan tanpa langsung tumbang.',
+      'Tebal, kuat, dan bertarung rapat. Pukulannya melempar bug jauh-jauh, ' +
+      'sehingga ia bisa berdiri di tengah kerumunan tanpa langsung tumbang.',
     texture: SHEETS.PLAYER.key,
     attackStyle: 'melee',
     maxHp: 130,
@@ -113,7 +123,8 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
     name: 'Archer',
     title: 'Mata Jauh',
     description:
-      'Menembak panah dari jarak aman dan bergerak paling gesit.\nRapuh kalau kena, jadi jarak adalah nyawanya.',
+      'Menembak panah dari jarak aman dan bergerak paling gesit. ' +
+      'Rapuh kalau kena, jadi jarak adalah nyawanya.',
     texture: SHEETS.PLAYER_PIRATEGIRL.key,
     attackStyle: 'ranged',
     maxHp: 85,
@@ -133,7 +144,7 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
       animated: false,
     },
     skills: ['volley', 'pinshot'],
-    highlights: ['Serang jarak jauh', 'Tergesit, dash cepat', 'HP 85 (rapuh)'],
+    highlights: ['Serang jarak jauh', 'Tergesit & lincah', 'HP 85 (rapuh)'],
   },
   {
     id: 'mage',
@@ -141,7 +152,7 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
     title: 'Pembaca Mantra',
     description:
       'Melempar bola api jarak pendek, jadi tetap harus mendekat. ' +
-      'Purge dan Shock menyala dua kali lebih sering dan jauh lebih keras.',
+      'Purge dan Shock menyala dua kali lebih sering dan lebih keras.',
     texture: SHEETS.PLAYER_BLONDKID.key,
     attackStyle: 'ranged',
     maxHp: 75,
@@ -170,7 +181,7 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
       { key: SHEETS.FX_ARCANE_CRESCENT.key, scale: 1.1, offset: 12, rotates: true },
       { key: SHEETS.FX_ARCANE_BLAST.key, scale: 0.9, offset: 6, rotates: true },
     ],
-    highlights: ['Bola api jarak pendek', 'Skill 2x lebih sering', 'HP 75 (terapuh)'],
+    highlights: ['Bola api pendek', 'Skill 2x sering', 'HP 75 (terapuh)'],
   },
 ];
 

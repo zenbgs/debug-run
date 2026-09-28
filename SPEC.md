@@ -607,6 +607,30 @@ datang belakangan.
 Saat menggantinya, seluruh panel harus diukur ulang — teks langsung meluber keluar bingkai.
 
 
+### 8.4 Layar pilih kelas
+
+Lebar kartu dan panel **dihitung dari lebar layar**, bukan konstanta — lebar logis
+berubah 420-640 mengikuti rasio perangkat, dan angka tetap (kartu 144, panel 452)
+meluber di layar tersempit.
+
+Tinggi panel detail mengikuti **teks terpanjang di antara semua kelas**, bukan
+kelas yang kebetulan terpilih: panel yang tumbuh-menyusut saat pemain berpindah
+kartu terlihat goyah. Panel ditambatkan dari tepi bawah supaya pertumbuhannya
+tidak menabrak kartu di atasnya.
+
+⚠️ **Panel detail wajib punya `wordWrap`, dan deskripsi kelas tidak boleh
+dipenggal manual** — aturan yang sama seperti naskah di `story.ts`. Dulu Warrior
+dan Archer dipenggal manual sementara Mage tidak, dan panelnya tidak punya
+word-wrap sama sekali: deskripsi Mage terukur melebar **756 px di layar 480 px**,
+meluber keluar di kedua sisi. Dikunci tes.
+
+⚠️ **Teks biasa lahir di depth 0, panel UI di `UI_DEPTH.PANEL` (200).** Baris
+kontrol dan petunjuk sempat tertimbun sepenuhnya di balik panel detail; keduanya
+kini memakai `UI_DEPTH.TEXT` secara eksplisit.
+
+Teks kartu dibatasi 19 karakter oleh tes: di lebar logis tersempit kartunya hanya
+~126 px, dan teks lebih panjang akan membungkus lalu menembus dasar kartu.
+
 ### 8.2 Rekor tersimpan
 
 `src/systems/Records.ts`. Skor, wave terjauh, rantai terbaik, dan jumlah kill
