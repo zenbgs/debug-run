@@ -18,7 +18,7 @@ gelombang demi gelombang. Referensi rasa: <https://bug-bash.github.com/>.
 2. **Combat terasa "nendang"** — knockback, hitstop, screen shake, FX slash yang tebal.
 3. **Satu sesi = 5–8 menit** — cocok dimainkan di tab browser saat rehat.
 
-**Non-goal (v1):** multiplayer, save/progress permanen, cerita bercabang, mobile touch control.
+**Non-goal (v1):** multiplayer, save/progress permanen, cerita bercabang.
 
 ---
 
@@ -26,7 +26,7 @@ gelombang demi gelombang. Referensi rasa: <https://bug-bash.github.com/>.
 
 | Item | Keputusan |
 |---|---|
-| Platform | Browser desktop (Chrome/Firefox/Edge/Safari terbaru) |
+| Platform | Browser desktop + **ponsel/tablet** (Chrome/Firefox/Edge/Safari terbaru) |
 | Engine | **Phaser 3 + Vite** ✅ dikonfirmasi |
 | Bahasa | TypeScript |
 | Resolusi logis | **480 × 270** px, integer-scale ke ukuran window |
@@ -54,14 +54,16 @@ Kondisi menang: selesaikan wave 10. Kondisi kalah: HP pemain habis.
 
 ## 4. Kontrol
 
-| Aksi | Keyboard | Alternatif |
-|---|---|---|
-| Gerak | `WASD` | Arrow keys |
-| Serang (pukul) | `J` | Left click |
-| Skill 1 (berbeda tiap kelas) | `K` | Right click |
-| Skill 2 (berbeda tiap kelas) | `L` | `Q` |
-| Dash | `Space` | `Shift` |
-| Pause | `Esc` | — |
+| Aksi | Keyboard | Alternatif | Sentuh |
+|---|---|---|---|
+| Gerak | `WASD` | Arrow keys | stik analog kiri |
+| Serang (pukul) | `J` | Left click | tombol `J` |
+| Skill 1 (berbeda tiap kelas) | `K` | Right click | tombol `K` |
+| Skill 2 (berbeda tiap kelas) | `L` | `Q` | tombol `L` |
+| Dash | `Space` | `Shift` | tombol `>>` |
+| Pause | `Esc` | — | tombol `||` kanan atas |
+
+Kontrol sentuh hanya muncul kalau jari adalah alat tunjuk utama — lihat §8.1.
 
 Serangan mengarah ke **arah hadap terakhir**, bukan ke posisi mouse. Ini menjaga kontrol
 tetap keyboard-only dan konsisten dengan sprite 3-arah yang kita punya (lihat §7).
@@ -449,6 +451,48 @@ headless dan membuktikan dua hal yang **tidak bisa** dijangkau unit test:
 Angka 38 px itu diskriminatornya: arena dalam mulai di x=32 dan body pemain
 memberi offset 6 px. Kalau `setCollisionByExclusion` tidak dijalankan ulang setelah
 `putTilesAt`, pemain akan menembus tembok dan berhenti di tepi dunia.
+
+
+### 8.1 Kontrol sentuh (mobile)
+
+Stik analog mengambang di separuh kiri layar, empat tombol aksi di kanan, dan
+tombol jeda di pojok kanan atas. Semuanya di `src/data/touch.ts` (tata letak) dan
+`src/systems/TouchControls.ts` (perilaku); matematika murninya di
+`src/systems/VirtualInput.ts` supaya bisa diuji tanpa browser.
+
+**Stiknya benar-benar analog**, bukan empat tombol arah yang disamarkan. Terukur
+di Chrome yang diemulasikan sebagai ponsel: dorongan penuh → 105 px/d, dorongan
+setengah → 52 px/d, serong 30° → vektor (90, 52) dengan laju tetap 105.
+
+⚠️ **Deteksi perangkat memakai `(pointer: coarse)`, bukan `ontouchstart`.**
+Pertanyaannya bukan "bisa disentuh?" tapi "apakah jari alat tunjuk utamanya?".
+`'ontouchstart' in window` bernilai **true di Chrome desktop Windows** — versi
+pertama memakai itu dan terukur memasang joystick di layar desktop 1280x720.
+
+⚠️ **Phaser melaporkan sentuhan sebagai `leftButtonDown()`.** `Player.onPointerDown`
+menyerang saat klik kiri, jadi tanpa penjagaan `pointer.wasTouch`, setiap jempol
+yang mendarat — termasuk yang memegang stik — memicu serangan. Terukur: laju turun
+dari 105 ke 47 karena pemain terus dalam masa pemulihan serangan.
+
+⚠️ **Transparansi Phaser berlipat.** `add.circle(..., 0.55)` lalu `setAlpha(0.34)`
+menghasilkan 0,19 — tombolnya nyaris tak terlihat di atas rumput. Bentuknya kini
+dibuat dengan alpha 1 dan `ALPHA_IDLE` jadi satu-satunya pengatur.
+
+⚠️ **Status tombol dibaca dengan memindai semua pointer tiap frame**, bukan
+`setInteractive()` per objek: dengan handler per-objek, jempol kedua sering tidak
+terdeteksi dan melepas jari di luar tombol meninggalkannya "tertekan" selamanya.
+`input.addPointer(4)` wajib — default Phaser cuma 2.
+
+Keyboard selalu menang kalau ditekan, jadi laptop layar sentuh tidak berebut.
+Panel upgrade, layar akhir, dan panel jeda semuanya bisa diketuk (`addTapZone`) —
+di ponsel tidak ada tombol 1/2/3 atau R, dan tanpa itu permainan buntu di sana.
+
+`index.html` mematikan pinch-zoom, zoom ketuk-ganda, pull-to-refresh, dan
+`touch-action` — tanpa yang terakhir, menggeser stik ikut men-scroll halaman dan
+stiknya patah di tengah gerakan. Layar tegak menampilkan ajakan memutar perangkat.
+
+**Verifikasi: `node tools/verify_touch.mjs [url]`** — mengirim sentuhan sungguhan
+lewat CDP `Input.dispatchTouchEvent`, bukan memanggil fungsi internal.
 
 ---
 

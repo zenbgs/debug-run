@@ -23,7 +23,7 @@ npm run build    # typecheck + build produksi ke dist/
 npm run preview  # cek hasil build
 ```
 
-Tidak butuh backend, tidak butuh konfigurasi. Cukup buka di browser desktop.
+Tidak butuh backend, tidak butuh konfigurasi. Jalan di browser desktop **dan di ponsel**.
 
 ## Kontrol
 
@@ -39,6 +39,22 @@ Tidak butuh backend, tidak butuh konfigurasi. Cukup buka di browser desktop.
 | Senyapkan audio | `M` |
 | Ulang setelah kalah/menang | `R` |
 | Hitbox debug | `F1` |
+
+### Di ponsel
+
+Kontrol layar muncul sendiri kalau jari adalah alat tunjuk utama perangkat — di
+desktop ia tidak dibuat sama sekali, jadi tidak ada yang menutupi layar.
+
+| Aksi | Kontrol layar |
+|---|---|
+| Gerak | **stik analog** di separuh kiri, muncul di tempat jempol menyentuh |
+| Pukul / skill / dash | tombol `J` `K` `L` `>>` di kanan bawah |
+| Jeda | tombol `\|\|` di kanan atas |
+| Pilih upgrade, ulang, lanjut | ketuk panelnya langsung |
+
+Stiknya **analog sungguhan**: dorongan setengah berarti jalan setengah cepat, dan
+arahnya bebas — bukan empat tombol arah yang disamarkan. Mainkan sambil mendatar;
+layar tegak menampilkan ajakan memutar perangkat.
 
 ## Isi permainan
 
@@ -124,11 +140,21 @@ npm test
 
 Tes menutup **logika murni** yang dulu hanya bisa diverifikasi dengan menyetir
 browser: integritas data (wave menyebut musuh yang ada, tiap skill dipakai satu
-kelas, semua texture terdaftar), generasi arena (seed sama → layout sama, tembok
-tanpa celah, area spawn bersih), dan matematika pengali skor.
+kelas, semua texture terdaftar), generasi arena tiap biome (seed sama → layout
+sama, tembok tanpa celah, area spawn bersih), matematika pengali skor, dan
+matematika stik analog.
 
-Yang **tidak** ditutup tes: apa pun yang butuh Phaser berjalan — tumbukan, input,
-render. Itu masih diverifikasi manual di browser.
+Yang butuh Phaser berjalan diverifikasi oleh dua skrip yang menjalankan game
+sungguhan di Chrome headless (butuh dev server jalan dan `puppeteer` global):
+
+```bash
+node tools/verify_biomes.mjs http://localhost:5173/   # tint & tabrakan tiap biome
+node tools/verify_touch.mjs  http://localhost:5173/   # stik, multi-sentuh, jeda
+```
+
+Keduanya mengukur, bukan mengintip: `verify_biomes` membandingkan warna piksel
+hasil render dengan hasil perkalian tint yang diharapkan, dan `verify_touch`
+mengirim sentuhan lewat CDP `Input.dispatchTouchEvent`.
 
 ## Catatan development
 

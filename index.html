@@ -2,7 +2,16 @@
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- `user-scalable=no` + `maximum-scale=1` mematikan pinch-zoom dan zoom
+         ketuk-ganda. Tanpa itu, ketukan cepat pada tombol serang membuat browser
+         mem-zoom halaman dan permainan jadi tidak terkendali.
+         `viewport-fit=cover` mengisi area di balik poni/sudut membulat. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0d0b14" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <title>DEBUG RUN</title>
     <!-- Favicon inline: tanpa ini browser meminta /favicon.ico dan menghasilkan
          404 yang mengotori console saat debugging. -->
@@ -24,6 +33,15 @@
         height: 100%;
         background: #0d0b14;
         overflow: hidden;
+        /* Menahan "pull to refresh" dan pantulan scroll saat jempol menggeser
+           stik analog ke bawah. */
+        overscroll-behavior: none;
+        /* Semua sentuhan milik game; tanpa ini menggeser stik ikut men-scroll
+           halaman dan stiknya patah di tengah gerakan. */
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
       }
       body {
         display: flex;
@@ -33,11 +51,39 @@
       canvas {
         image-rendering: pixelated;
         image-rendering: crisp-edges;
+        touch-action: none;
+      }
+
+      /* Ajakan memutar perangkat. Resolusi logis game 480x270 (16:9 mendatar);
+         dipaksakan ke layar tegak, arenanya menyusut sampai musuh tidak terbaca. */
+      #putar {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        background: #0d0b14;
+        color: #8fd35d;
+        font-family: 'Press Start 2P', monospace;
+        font-size: 12px;
+        line-height: 2;
+        text-align: center;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+      /* Hanya untuk layar sentuh yang benar-benar tegak — jendela desktop yang
+         sempit tidak boleh ikut kena. */
+      @media (orientation: portrait) and (pointer: coarse) {
+        #putar {
+          display: flex;
+        }
       }
     </style>
   </head>
   <body>
     <div id="game"></div>
+    <div id="putar">PUTAR PERANGKAT<br />KE POSISI MENDATAR</div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

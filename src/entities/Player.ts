@@ -7,6 +7,7 @@ import { getSkill, SKILL_HOTKEYS, type Skill, type SkillId } from '../data/skill
 import { createBaseStats, type PlayerStats, type Upgrade } from '../data/upgrades';
 import { audio } from '../systems/Audio';
 import { destroyWithScene } from '../systems/Lifecycle';
+import type { VirtualInput } from '../systems/VirtualInput';
 
 export type Facing = 'down' | 'up' | 'left' | 'right';
 
@@ -164,6 +165,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  /**
+   * Sumber input layar sentuh. `undefined` di desktop.
+   *
+   * Disuntikkan, bukan dibuat sendiri: `Player` tidak boleh tahu apa-apa soal
+   * tata letak tombol di layar, dan scene menu memakai kontrolnya sendiri.
+   */
+  private virtual?: VirtualInput;
+
+  setVirtualInput(sumber: VirtualInput | undefined): void {
+    this.virtual = sumber;
+  }
+
   getFacing(): Facing {
     return this.facing;
   }
@@ -306,6 +319,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
+    // Di perangkat sentuh, serangan HANYA lewat tombol di layar.
+    //
+    // Phaser melaporkan sentuhan sebagai `leftButtonDown()`, jadi tanpa penjagaan
+    // ini setiap jempol yang mendarat — termasuk yang memegang stik analog —
+    // memicu serangan. Terukur: mendorong stik menghasilkan kecepatan 47 px/d,
+    // bukan 105, karena pemain terus-menerus dalam masa pemulihan serangan.
+    if (this.virtual && pointer.wasTouch) return;
+
     if (pointer.leftButtonDown()) this.tryAttack();
     else if (pointer.rightButtonDown()) this.trySkillSlot(0);
   }
@@ -426,9 +447,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       return;
     }
 
-    if (held(this.keys.attack)) this.tryAttack();
-    if (held(this.keys.purge)) this.trySkillSlot(0);
-    if (held(this.keys.shock)) this.trySkillSlot(1);
+    const v = this.virtual;
+    if (held(this.keys.attack) || v?.attack) this.tryAttack();
+    if (held(this.keys.purge) || v?.skill1) this.trySkillSlot(0);
+    if (held(this.keys.shock) || v?.skill2) this.trySkillSlot(1);
 
     // Selama sodokan, arah hadap dikunci supaya arah slash cocok dengan FX-nya.
     const lunging = now < this.lungeUntil;
@@ -448,7 +470,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       dy *= inv;
     }
 
-    if (held(this.keys.dash)) {
+    // Stik analog dipakai hanya kalau keyboard diam, jadi keyboard selalu menang
+    // dan perangkat dengan keduanya (laptop layar sentuh) tidak saling berebut.
+    // Panjang vektornya 0..1, bukan 0/1 — dorongan setengah = jalan setengah cepat.
+    if (dx === 0 && dy === 0 && v) {
+      dx = v.moveX;
+      dy = v.moveY;
+    }
+
+    if (held(this.keys.dash) || v?.dash) {
       this.tryDash(dx, dy);
       if (this.isDashing) return;
     }

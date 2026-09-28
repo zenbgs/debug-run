@@ -67,6 +67,33 @@ export function addText(
   return label;
 }
 
+/**
+ * Area tak terlihat yang bisa diketuk, ditumpuk di atas sebaris teks panel.
+ *
+ * Teks itu sendiri sengaja TIDAK dibuat interaktif: hit area-nya mengikuti
+ * bounding box glyph, yang untuk font 6-8 px jauh lebih kecil dari ujung jari.
+ * Rekomendasi umum target sentuh adalah ~44 px CSS; di resolusi logis 480x270
+ * yang berarti sekitar 20 px, jadi tinggi baris dipakai apa adanya.
+ */
+export function addTapZone(
+  scene: Phaser.Scene,
+  panel: PanelHandle,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  onTap: () => void
+): Phaser.GameObjects.Rectangle {
+  const zone = scene.add
+    .rectangle(x, y, width, height, 0xffffff, 0)
+    .setScrollFactor(0)
+    .setInteractive({ useHandCursor: true });
+
+  zone.on('pointerdown', onTap);
+  panel.container.add(zone);
+  return zone;
+}
+
 /** Banner "WAVE N" yang muncul lalu menghilang sendiri. */
 export function showWaveBanner(
   scene: Phaser.Scene,

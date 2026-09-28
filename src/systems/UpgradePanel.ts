@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { UPGRADES, UPGRADE_CHOICES, type Upgrade } from '../data/upgrades';
-import { addText, createPanel, type PanelHandle } from './Ui';
+import { addText, createPanel, type PanelHandle, addTapZone } from './Ui';
 
 /**
  * Panel pilih-1-dari-3 yang muncul di antara wave.
@@ -66,12 +66,16 @@ export class UpgradePanel {
         color: '#c9c4d8',
       });
 
-      if (!keyboard) return;
-      const key = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE + index);
       const handler = () => {
         this.close();
         onPick(upgrade);
       };
+
+      // Bisa diketuk, bukan hanya ditekan angkanya — di ponsel tidak ada tombol 1/2/3.
+      addTapZone(this.scene, this.panel!, centerX, y + 5, width - 20, rowHeight - 2, handler);
+
+      if (!keyboard) return;
+      const key = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE + index);
       key.on('down', handler);
       this.keyHandlers.push({ key, handler });
     });

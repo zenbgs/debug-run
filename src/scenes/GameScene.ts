@@ -28,7 +28,9 @@ import { ScoreStreak } from '../systems/ScoreStreak';
 import { DialogueBox } from '../systems/DialogueBox';
 import { createFxAnimations, playFx } from '../systems/Fx';
 import { createParticleTexture } from '../systems/Particles';
-import { addText, createPanel, showWaveBanner } from '../systems/Ui';
+import { addTapZone, addText, createPanel, showWaveBanner } from '../systems/Ui';
+import { TouchControls } from '../systems/TouchControls';
+import { isTouchDevice } from '../systems/VirtualInput';
 import { UpgradePanel } from '../systems/UpgradePanel';
 import { WaveManager } from '../systems/WaveManager';
 import { TILESET_TEXTURE } from './BootScene';
@@ -91,6 +93,9 @@ export class GameScene extends Phaser.Scene {
   private groundLayer!: Phaser.Tilemaps.TilemapLayer;
   /** Biome yang sedang tampil; dipakai banner wave dan HUD debug. */
   private biome: Biome = BIOMES[0];
+
+  /** Stik + tombol layar; `undefined` di perangkat tanpa sentuh. */
+  private touch?: TouchControls;
 
   private debugGraphics?: Phaser.GameObjects.Graphics;
   private hudText!: Phaser.GameObjects.Text;
@@ -194,6 +199,15 @@ export class GameScene extends Phaser.Scene {
 
     this.createDebugOverlay();
     this.setupRestart();
+
+    // Kontrol sentuh dibuat SETELAH HUD supaya depth-nya di atas, dan hanya di
+    // perangkat yang memang punya layar sentuh — di desktop ia tidak ada sama
+    // sekali, bukan sekadar disembunyikan.
+    if (isTouchDevice()) {
+      this.touch = new TouchControls(this, () => this.togglePause());
+      this.player.setVirtualInput(this.touch);
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.touch?.destroy());
+    }
 
     // Dibuat terakhir: konstruktornya langsung memulai wave 1 dan memanggil onWaveStart.
     this.waves = new WaveManager(
@@ -803,7 +817,16 @@ export class GameScene extends Phaser.Scene {
       ].join('\n'),
       { size: 7, color: '#e8e4f0' }
     );
-    addText(this, panel, cx, top + 84, 'tekan R untuk ulang', { size: 7, color: '#ffe066' });
+    addText(this, panel, cx, top + 84, this.touch ? 'ketuk untuk ulang' : 'tekan R untuk ulang', {
+      size: 7,
+      color: '#ffe066',
+    });
+
+    // Seluruh panel bisa diketuk. Di ponsel tidak ada tombol R, dan layar akhir
+    // yang tidak bisa dilanjutkan berarti game-nya buntu total di sana.
+    addTapZone(this, panel, cx, this.scale.height / 2, 300, 100, () => {
+      if (this.state === 'gameover' || this.state === 'victory') this.scene.restart();
+    });
   }
 
   private setupRestart(): void {
@@ -827,10 +850,17 @@ export class GameScene extends Phaser.Scene {
         size: 12,
         color: '#ffe066',
       });
-      addText(this, panel, this.scale.width / 2, this.scale.height / 2 + 10, 'ESC untuk lanjut', {
-        size: 7,
-        color: '#c9c4d8',
-      });
+      addText(
+        this,
+        panel,
+        this.scale.width / 2,
+        this.scale.height / 2 + 10,
+        this.touch ? 'ketuk untuk lanjut' : 'ESC untuk lanjut',
+        { size: 7, color: '#c9c4d8' }
+      );
+      addTapZone(this, panel, this.scale.width / 2, this.scale.height / 2, 190, 44, () =>
+        this.togglePause()
+      );
       this.pausePanel = panel;
       return;
     }
@@ -1021,6 +1051,14 @@ ${skills}  ${dash}`
   override update(_time: number, delta: number): void {
     // Satu-satunya tempat cache musuh dibatalkan secara rutin.
     this.invalidateAliveCache();
+
+    // Kontrol sentuh hanya tampil saat benar-benar bermain. Dibiarkan tampil saat
+    // dialog atau panel upgrade, ia akan menutupi teks DAN tetap menggerakkan
+    // karakter di balik panel.
+    if (this.touch) {
+      this.touch.setVisible(this.state === 'playing' && !this.dialogue.isOpen);
+      this.touch.update();
+    }
 
     if (this.state === 'dialog') {
       this.dialogue.update(delta);
