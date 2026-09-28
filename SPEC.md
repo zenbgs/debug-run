@@ -29,7 +29,7 @@ gelombang demi gelombang. Referensi rasa: <https://bug-bash.github.com/>.
 | Platform | Browser desktop + **ponsel/tablet** (Chrome/Firefox/Edge/Safari terbaru) |
 | Engine | **Phaser 3 + Vite** ✅ dikonfirmasi |
 | Bahasa | TypeScript |
-| Resolusi logis | **480 × 270** px, integer-scale ke ukuran window |
+| Resolusi logis | tinggi **tetap 270** px; lebar mengikuti rasio layar (420–640) |
 | Ukuran tile | 16 × 16 px |
 | Ukuran sprite pemain | 32 × 32 px |
 | Target frame rate | 60 fps |
@@ -491,8 +491,26 @@ di ponsel tidak ada tombol 1/2/3 atau R, dan tanpa itu permainan buntu di sana.
 `touch-action` — tanpa yang terakhir, menggeser stik ikut men-scroll halaman dan
 stiknya patah di tengah gerakan. Layar tegak menampilkan ajakan memutar perangkat.
 
+**Layar penuh tanpa bilah hitam.** Ponsel modern rasionya 19,5:9 atau 20:9, jauh
+lebih lebar dari 16:9 — `Scale.FIT` pada ukuran logis tetap menyisakan bilah di
+kiri dan kanan. Karena itu **hanya tingginya yang dikunci** (270 px, supaya ukuran
+sprite terasa sama di semua perangkat); lebarnya dihitung saat boot dari rasio
+layar dan dibatasi 420–640 px. Batas atas 640 = lebar arena, jadi tepi arena tidak
+pernah tembus. Terukur di layar 844x390: logis 584x270, kanvas mengisi 99,9% x 100%.
+
+⚠️ Rasio dihitung sebagai **mendatar** (`maks/min`), bukan dari orientasi saat itu.
+Pemain hampir selalu membuka tautannya sambil memegang ponsel tegak; menghitung
+dari orientasi saat itu mengunci game di rasio tegak dan tetap ter-letterbox
+setelah perangkatnya diputar.
+
+Konsekuensinya **tata letak tidak boleh memakai koordinat mutlak**. Tombol sentuh
+ditulis sebagai jarak dari tepi kanan/bawah, dan kotak dialog dibatasi lebar layar.
+
 **Verifikasi: `node tools/verify_touch.mjs [url]`** — mengirim sentuhan sungguhan
-lewat CDP `Input.dispatchTouchEvent`, bukan memanggil fungsi internal.
+lewat CDP `Input.dispatchTouchEvent`, bukan memanggil fungsi internal. Skripnya
+membaca posisi tombol dari `TouchControls.buttonPosition()`, bukan menebak
+koordinat; menebak membuatnya menyentuh ruang kosong dan melaporkan kegagalan
+palsu begitu tata letaknya berubah.
 
 ---
 

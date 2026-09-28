@@ -66,6 +66,11 @@ async function keLayar(x, y) {
   );
 }
 
+/** Titik aman di dalam zona stik — lebar logisnya berbeda tiap perangkat. */
+async function xZonaStik() {
+  return page.evaluate(() => Math.round(window.__game.scale.width * 0.22));
+}
+
 let idBerikut = 1;
 async function sentuh(jenis, titik) {
   await cdp.send('Input.dispatchTouchEvent', {
@@ -76,9 +81,9 @@ async function sentuh(jenis, titik) {
 
 /** Tahan stik ke arah tertentu selama beberapa saat, lalu ukur kecepatan pemain. */
 async function dorongStik(dxLogis, dyLogis, label) {
-  const pusat = await keLayar(110, 190);
+  const pusat = await keLayar(await xZonaStik(), 190);
   const id = idBerikut++;
-  const ujung = await keLayar(110 + dxLogis, 190 + dyLogis);
+  const ujung = await keLayar((await xZonaStik()) + dxLogis, 190 + dyLogis);
 
   await sentuh('touchStart', [{ ...pusat, id }]);
   await new Promise((r) => setTimeout(r, 60));
@@ -108,6 +113,19 @@ hasil.terdeteksiSentuh = await page.evaluate(
   () => window.__game.scene.getScene('Game').touch !== undefined
 );
 
+// Seberapa penuh kanvas mengisi layar. Ini yang dikeluhkan: bilah hitam di kiri
+// dan kanan karena ukuran logis tetap 16:9 padahal ponsel jauh lebih lebar.
+hasil.pengisianLayar = await page.evaluate(() => {
+  const b = window.__game.scale.canvasBounds;
+  return {
+    layar: `${window.innerWidth}x${window.innerHeight}`,
+    ukuranLogis: `${window.__game.scale.width}x${window.__game.scale.height}`,
+    kanvas: `${Math.round(b.width)}x${Math.round(b.height)}`,
+    isiLebar: +((b.width / window.innerWidth) * 100).toFixed(1),
+    isiTinggi: +((b.height / window.innerHeight) * 100).toFixed(1),
+  };
+});
+
 const R = await page.evaluate(() => 30); // TOUCH.STICK.RADIUS
 hasil.penuhKanan = await dorongStik(R, 0, 'dorong penuh kanan');
 hasil.separuhKanan = await dorongStik(R * 0.5 + 2.5, 0, 'dorong separuh kanan');
@@ -120,9 +138,13 @@ hasil.dalamDeadzone = await dorongStik(3, 0, 'geser 3 px (dalam deadzone)');
 
 // --- Multi-sentuh: jempol kiri menahan stik, jempol kanan menekan serang ---
 {
-  const pusat = await keLayar(110, 190);
-  const ujung = await keLayar(140, 190);
-  const tombolJ = await keLayar(420, 222);
+  const xs = await xZonaStik();
+  const pusat = await keLayar(xs, 190);
+  const ujung = await keLayar(xs + 30, 190);
+  const posJ = await page.evaluate(
+    () => window.__game.scene.getScene('Game').touch.buttonPosition('attack')
+  );
+  const tombolJ = await keLayar(posJ.x, posJ.y);
   const idStik = idBerikut++;
   const idJ = idBerikut++;
 
@@ -149,7 +171,10 @@ hasil.dalamDeadzone = await dorongStik(3, 0, 'geser 3 px (dalam deadzone)');
 
 // --- Jeda: sentuh tombol, lepas, lalu ketuk panel untuk lanjut ---
 {
-  const tombolJeda = await keLayar(462, 16);
+  const posJeda = await page.evaluate(
+    () => window.__game.scene.getScene('Game').touch.pausePosition
+  );
+  const tombolJeda = await keLayar(posJeda.x, posJeda.y);
   const id = idBerikut++;
   await sentuh('touchStart', [{ ...tombolJeda, id }]);
   await new Promise((r) => setTimeout(r, 120));
@@ -168,6 +193,20 @@ hasil.dalamDeadzone = await dorongStik(3, 0, 'geser 3 px (dalam deadzone)');
   hasil.jeda = { setelahDitekan: setelahJeda, setelahDilanjutkan: setelahLanjut };
 }
 
+// --- Teks petunjuk kotak dialog ---
+hasil.petunjukDialog = await page.evaluate(async () => {
+  const s = window.__game.scene.getScene('Game');
+  s.enemyGroup.getChildren().slice().forEach((e) => e.destroy());
+  s.waves.beginWave(4); // wave 5 memutar cerita boss
+  await new Promise((r) => setTimeout(r, 900));
+  const teks = s.dialogue.hint?.text;
+  while (s.dialogue.isOpen) {
+    s.dialogue.advance();
+    s.dialogue.advance();
+  }
+  return teks;
+});
+
 mkdirSync(OUT_DIR, { recursive: true });
 await page.screenshot({ path: `${OUT_DIR}/mobile-landscape.png` });
 
@@ -184,6 +223,7 @@ writeFileSync(`${OUT_DIR}/touch.json`, JSON.stringify(hasil, null, 2));
 await browser.close();
 
 console.log('kontrol sentuh terpasang :', hasil.terdeteksiSentuh);
+console.log('pengisian layar          :', JSON.stringify(hasil.pengisianLayar));
 for (const k of ['penuhKanan', 'separuhKanan', 'serong30', 'dalamDeadzone']) {
   const h = hasil[k];
   console.log(
@@ -200,4 +240,5 @@ hasil.stikTidakMemicuSerangan =
 console.log('stik tidak memicu serang :', hasil.stikTidakMemicuSerangan);
 console.log('multi-sentuh             :', JSON.stringify(hasil.multiSentuh));
 console.log('jeda                     :', JSON.stringify(hasil.jeda));
+console.log('petunjuk kotak dialog    :', JSON.stringify(hasil.petunjukDialog));
 console.log('ajakan putar (potret)    :', hasil.ajakanPutarTampil);

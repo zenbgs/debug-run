@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { FONT_FAMILY } from '../data/config';
 import { DIALOGUE, type DialogueLine, type StoryBeat } from '../data/story';
 import { audio } from './Audio';
+import { isTouchDevice } from './VirtualInput';
 
 const DEPTH = 300;
 
@@ -70,7 +71,9 @@ export class DialogueBox {
   }
 
   private build(): void {
-    const w = DIALOGUE.BOX_WIDTH;
+    // Dibatasi lebar layar: lebar logis berubah mengikuti rasio perangkat, dan
+    // kotak 452 px akan meluber di layar logis tersempit (420 px).
+    const w = Math.min(DIALOGUE.BOX_WIDTH, this.scene.scale.width - 28);
     const h = DIALOGUE.BOX_HEIGHT;
     const cx = this.scene.scale.width / 2;
     const cy = this.scene.scale.height - h / 2 - 10;
@@ -112,7 +115,8 @@ export class DialogueBox {
       wordWrap: { width: lebarTeks },
     });
     this.hint = this.scene.add
-      .text(cx + w / 2 - 10, cy + h / 2 - 10, 'SPASI', {
+      // Di ponsel tidak ada tombol SPASI — yang dilakukan pemain adalah mengetuk.
+      .text(cx + w / 2 - 10, cy + h / 2 - 10, isTouchDevice() ? 'SELANJUTNYA' : 'SPASI', {
         fontFamily: FONT_FAMILY,
         fontSize: '6px',
         color: '#8fd35d',

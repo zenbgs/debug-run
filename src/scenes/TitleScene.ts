@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { audio } from '../systems/Audio';
 import { addText, createPanel } from '../systems/Ui';
+import { isTouchDevice } from '../systems/VirtualInput';
 
 /**
  * Layar judul.
@@ -48,10 +49,14 @@ export class TitleScene extends Phaser.Scene {
       { size: 6, color: '#e8e4f0', align: 'left' }
     );
 
-    const prompt = addText(this, panel, cx, cy + 66, 'tekan SPASI untuk pilih kelas', {
-      size: 8,
-      color: '#ffe066',
-    });
+    const prompt = addText(
+      this,
+      panel,
+      cx,
+      cy + 66,
+      isTouchDevice() ? 'ketuk untuk pilih kelas' : 'tekan SPASI untuk pilih kelas',
+      { size: 8, color: '#ffe066' }
+    );
     this.tweens.add({ targets: prompt, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
 
     const start = () => {

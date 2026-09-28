@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { VIEW } from '../data/config';
 import { TOUCH } from '../data/touch';
 import { shouldShowTouchControls, stickVector } from './VirtualInput';
 
@@ -103,45 +104,70 @@ describe('shouldShowTouchControls', () => {
 });
 
 describe('tata letak kontrol sentuh', () => {
-  const { WIDTH, HEIGHT } = { WIDTH: 480, HEIGHT: 270 };
+  // Lebar logis berubah mengikuti rasio layar, jadi tata letak diuji di seluruh
+  // rentang yang didukung — bukan pada satu ukuran saja. Lebar tersempit adalah
+  // kasus paling berisiko: di situ tombol paling dekat dengan zona stik.
+  const LEBAR_UJI = [VIEW.MIN_WIDTH, 480, 584, VIEW.MAX_WIDTH];
+  const H = VIEW.HEIGHT;
 
-  it('semua tombol berada di dalam layar', () => {
+  const posisi = (b: (typeof TOUCH.BUTTONS)[number], lebar: number) => ({
+    x: lebar - b.right,
+    y: H - b.bottom,
+  });
+
+  it.each(LEBAR_UJI)('semua tombol di dalam layar (lebar %i)', (lebar) => {
     for (const b of TOUCH.BUTTONS) {
-      expect(b.x - b.radius, `${b.id} keluar kiri`).toBeGreaterThanOrEqual(0);
-      expect(b.x + b.radius, `${b.id} keluar kanan`).toBeLessThanOrEqual(WIDTH);
-      expect(b.y - b.radius, `${b.id} keluar atas`).toBeGreaterThanOrEqual(0);
-      expect(b.y + b.radius, `${b.id} keluar bawah`).toBeLessThanOrEqual(HEIGHT);
+      const { x, y } = posisi(b, lebar);
+      expect(x - b.radius, `${b.id} keluar kiri`).toBeGreaterThanOrEqual(0);
+      expect(x + b.radius, `${b.id} keluar kanan`).toBeLessThanOrEqual(lebar);
+      expect(y - b.radius, `${b.id} keluar atas`).toBeGreaterThanOrEqual(0);
+      expect(y + b.radius, `${b.id} keluar bawah`).toBeLessThanOrEqual(H);
     }
-    expect(TOUCH.PAUSE.x + TOUCH.PAUSE.radius).toBeLessThanOrEqual(WIDTH);
+    expect(lebar - TOUCH.PAUSE.right + TOUCH.PAUSE.radius).toBeLessThanOrEqual(lebar);
+    expect(TOUCH.PAUSE.top - TOUCH.PAUSE.radius).toBeGreaterThanOrEqual(0);
   });
 
   it('tombol tidak saling tumpang tindih', () => {
-    // Tombol yang bertindihan berarti satu ketukan memicu dua aksi sekaligus.
+    // Jaraknya tetap di semua lebar karena semua dianchor ke tepi yang sama.
     for (let i = 0; i < TOUCH.BUTTONS.length; i++) {
       for (let j = i + 1; j < TOUCH.BUTTONS.length; j++) {
-        const a = TOUCH.BUTTONS[i];
-        const b = TOUCH.BUTTONS[j];
+        const a = posisi(TOUCH.BUTTONS[i], 480);
+        const b = posisi(TOUCH.BUTTONS[j], 480);
         const jarak = Math.hypot(a.x - b.x, a.y - b.y);
-        expect(jarak, `${a.id} bertindihan dengan ${b.id}`).toBeGreaterThan(
-          a.radius + b.radius
-        );
+        expect(
+          jarak,
+          `${TOUCH.BUTTONS[i].id} bertindihan dengan ${TOUCH.BUTTONS[j].id}`
+        ).toBeGreaterThan(TOUCH.BUTTONS[i].radius + TOUCH.BUTTONS[j].radius);
       }
     }
   });
 
-  it('tombol aksi tidak mengganggu zona stik', () => {
+  it.each(LEBAR_UJI)('tombol aksi tidak mengganggu zona stik (lebar %i)', (lebar) => {
     // Jempol kiri hanya untuk gerak; tombol yang masuk zona stik membuat stik
     // gagal terbuka karena sentuhannya diklaim tombol.
-    const batas = 480 * TOUCH.STICK.ZONE_RATIO;
+    const batas = lebar * TOUCH.STICK.ZONE_RATIO;
     for (const b of TOUCH.BUTTONS) {
-      expect(b.x - b.radius, `${b.id} masuk zona stik`).toBeGreaterThan(batas);
+      expect(posisi(b, lebar).x - b.radius, `${b.id} masuk zona stik`).toBeGreaterThan(batas);
     }
   });
 
   it('tidak ada tombol yang menutupi HUD di bagian atas layar', () => {
     // HUD (HP, wave, skor) membentang sampai y=30.
     for (const b of TOUCH.BUTTONS) {
-      expect(b.y - b.radius, `${b.id} menutupi HUD`).toBeGreaterThan(30);
+      expect(H - b.bottom - b.radius, `${b.id} menutupi HUD`).toBeGreaterThan(30);
+    }
+  });
+
+  it('tombol jeda tidak bertabrakan dengan tombol aksi mana pun', () => {
+    for (const lebar of LEBAR_UJI) {
+      const jeda = { x: lebar - TOUCH.PAUSE.right, y: TOUCH.PAUSE.top };
+      for (const b of TOUCH.BUTTONS) {
+        const p = posisi(b, lebar);
+        expect(
+          Math.hypot(jeda.x - p.x, jeda.y - p.y),
+          `${b.id} vs jeda pada lebar ${lebar}`
+        ).toBeGreaterThan(TOUCH.PAUSE.radius + b.radius);
+      }
     }
   });
 

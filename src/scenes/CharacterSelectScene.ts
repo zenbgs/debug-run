@@ -5,6 +5,7 @@ import { FONT_FAMILY } from '../data/config';
 import { STORY_INTRO } from '../data/story';
 import { Player } from '../entities/Player';
 import { audio } from '../systems/Audio';
+import { isTouchDevice } from '../systems/VirtualInput';
 import { DialogueBox } from '../systems/DialogueBox';
 import { addText, createPanel, type PanelHandle } from '../systems/Ui';
 
@@ -121,7 +122,7 @@ export class CharacterSelectScene extends Phaser.Scene {
     });
 
     this.add
-      .text(cx, 258, 'panah kiri/kanan pilih  -  ENTER mulai', {
+      .text(cx, 258, isTouchDevice() ? 'ketuk kartu untuk memilih' : 'panah kiri/kanan pilih  -  ENTER mulai', {
         fontFamily: FONT_FAMILY,
         fontSize: '7px',
         color: '#ffe066',

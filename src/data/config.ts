@@ -4,9 +4,22 @@
  */
 
 export const VIEW = {
-  /** Resolusi logis; di-scale integer ke ukuran window. (SPEC.md §2) */
+  /**
+   * Lebar logis **dasar**. Lebar sebenarnya dihitung saat boot dari rasio layar
+   * perangkat (`hitungUkuranLogis` di `main.ts`) supaya kanvas mengisi layar
+   * penuh tanpa bilah hitam — ponsel modern rasionya 19,5:9 atau 20:9, jauh lebih
+   * lebar dari 16:9, dan `Scale.FIT` pada ukuran tetap menyisakan bilah di kiri
+   * dan kanan.
+   */
   WIDTH: 480,
+  /**
+   * Tinggi logis **tetap**, dan sengaja tidak ikut berubah: ini yang menjaga
+   * ukuran sprite terasa sama di semua perangkat. Hanya lebarnya yang melar.
+   */
   HEIGHT: 270,
+  /** Batas lebar logis. Maksimum = lebar arena, jadi tepi arena tidak pernah tembus. */
+  MIN_WIDTH: 420,
+  MAX_WIDTH: 640,
 } as const;
 
 export const TILE = 16;

@@ -20,12 +20,38 @@ async function muatFont(): Promise<void> {
   }
 }
 
+/**
+ * Lebar logis yang pas dengan layar perangkat.
+ *
+ * Tingginya dikunci di `VIEW.HEIGHT`; hanya lebarnya yang mengikuti rasio layar.
+ * Dengan begitu `Scale.FIT` mengisi layar tepat tanpa bilah hitam, sementara
+ * ukuran sprite tetap terasa sama di semua perangkat.
+ *
+ * Rasio selalu dihitung sebagai **mendatar** (`maks/min`), bukan dari orientasi
+ * saat ini. Kalau tidak, game yang dibuka dalam posisi tegak akan terkunci di
+ * rasio tegak dan tetap ter-letterbox setelah perangkatnya diputar — dan itu
+ * justru urutan yang paling sering terjadi, karena pemain membuka tautannya
+ * sambil memegang ponsel tegak.
+ */
+function hitungUkuranLogis(): { width: number; height: number } {
+  const w = window.innerWidth || VIEW.WIDTH;
+  const h = window.innerHeight || VIEW.HEIGHT;
+  const rasio = Math.max(w, h) / Math.max(1, Math.min(w, h));
+
+  const lebar = Math.round(VIEW.HEIGHT * rasio);
+  return {
+    width: Math.min(VIEW.MAX_WIDTH, Math.max(VIEW.MIN_WIDTH, lebar)),
+    height: VIEW.HEIGHT,
+  };
+}
+
 function buatGame(): Phaser.Game {
+  const ukuran = hitungUkuranLogis();
   return new Phaser.Game({
     type: Phaser.AUTO,
     parent: "game",
-    width: VIEW.WIDTH,
-    height: VIEW.HEIGHT,
+    width: ukuran.width,
+    height: ukuran.height,
     pixelArt: true,
     backgroundColor: "#0d0b14",
     scale: {

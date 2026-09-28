@@ -40,6 +40,8 @@ export class TouchControls implements VirtualInput {
   private stickPointerId = -1;
   private stickCx = 0;
   private stickCy = 0;
+  private pauseX = 0;
+  private pauseY = 0;
   private pauseSebelumnya = false;
 
   constructor(
@@ -62,15 +64,22 @@ export class TouchControls implements VirtualInput {
       .setDepth(TOUCH.DEPTH)
       .setVisible(false);
 
+    const lebar = scene.scale.width;
+    const tinggi = scene.scale.height;
+
     for (const spec of TOUCH.BUTTONS) {
+      // Ditempelkan ke tepi kanan/bawah; lebar logis berbeda tiap perangkat.
+      const bx = lebar - spec.right;
+      const by = tinggi - spec.bottom;
+
       const lingkaran = scene.add
-        .circle(spec.x, spec.y, spec.radius, TOUCH.COLOR_BASE, 1)
+        .circle(bx, by, spec.radius, TOUCH.COLOR_BASE, 1)
         .setStrokeStyle(2, TOUCH.COLOR_EDGE, 1)
         .setScrollFactor(0)
         .setDepth(TOUCH.DEPTH)
         .setAlpha(TOUCH.ALPHA_IDLE);
       const teks = scene.add
-        .text(spec.x, spec.y, spec.label, {
+        .text(bx, by, spec.label, {
           fontFamily: FONT_FAMILY,
           fontSize: spec.radius >= 24 ? '10px' : '7px',
           color: TOUCH.COLOR_LABEL,
@@ -84,21 +93,23 @@ export class TouchControls implements VirtualInput {
         id: spec.id,
         lingkaran,
         teks,
-        x: spec.x,
-        y: spec.y,
+        x: bx,
+        y: by,
         radius: spec.radius,
         ditekan: false,
       });
     }
 
+    this.pauseX = lebar - TOUCH.PAUSE.right;
+    this.pauseY = TOUCH.PAUSE.top;
     this.pauseBtn = scene.add
-      .circle(TOUCH.PAUSE.x, TOUCH.PAUSE.y, TOUCH.PAUSE.radius, TOUCH.COLOR_BASE, 1)
+      .circle(this.pauseX, this.pauseY, TOUCH.PAUSE.radius, TOUCH.COLOR_BASE, 1)
       .setStrokeStyle(1, TOUCH.COLOR_EDGE, 1)
       .setScrollFactor(0)
       .setDepth(TOUCH.DEPTH)
       .setAlpha(TOUCH.ALPHA_IDLE);
     this.pauseIcon = scene.add
-      .text(TOUCH.PAUSE.x, TOUCH.PAUSE.y, '||', {
+      .text(this.pauseX, this.pauseY, '||', {
         fontFamily: FONT_FAMILY,
         fontSize: '7px',
         color: TOUCH.COLOR_LABEL,
@@ -107,6 +118,22 @@ export class TouchControls implements VirtualInput {
       .setScrollFactor(0)
       .setDepth(TOUCH.DEPTH)
       .setAlpha(TOUCH.ALPHA_IDLE);
+  }
+
+  /**
+   * Posisi tombol di layar, dalam piksel logis.
+   *
+   * Ada demi harness verifikasi (`tools/verify_touch.mjs`): posisinya dihitung
+   * dari tepi layar dan berbeda tiap perangkat, jadi skrip yang menebak koordinat
+   * akan menyentuh ruang kosong dan melaporkan kegagalan palsu.
+   */
+  buttonPosition(id: string): { x: number; y: number } | undefined {
+    const t = this.tombol.find((b) => b.id === id);
+    return t ? { x: t.x, y: t.y } : undefined;
+  }
+
+  get pausePosition(): { x: number; y: number } {
+    return { x: this.pauseX, y: this.pauseY };
   }
 
   /** Sembunyikan saat dialog, panel upgrade, jeda, atau layar akhir sedang tampil. */
@@ -209,7 +236,7 @@ export class TouchControls implements VirtualInput {
         if (Phaser.Math.Distance.Between(p.x, p.y, t.x, t.y) <= t.radius) t.ditekan = true;
       }
       if (
-        Phaser.Math.Distance.Between(p.x, p.y, TOUCH.PAUSE.x, TOUCH.PAUSE.y) <=
+        Phaser.Math.Distance.Between(p.x, p.y, this.pauseX, this.pauseY) <=
         TOUCH.PAUSE.radius
       ) {
         pauseDitekan = true;

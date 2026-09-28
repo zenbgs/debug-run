@@ -1,6 +1,10 @@
 /**
- * Tata letak kontrol layar sentuh. Semua koordinat dalam piksel logis (480x270),
- * sama seperti sisa UI. (SPEC.md §8.1)
+ * Tata letak kontrol layar sentuh. (SPEC.md §8.1)
+ *
+ * Posisi ditulis sebagai **jarak dari tepi kanan/bawah**, bukan koordinat mutlak.
+ * Lebar logis game berubah mengikuti rasio layar perangkat (lihat `VIEW` di
+ * `config.ts`), jadi koordinat mutlak seperti `x: 420` akan menggantung di tengah
+ * layar pada ponsel 20:9 alih-alih menempel di pinggir tempat jempol berada.
  *
  * Aturan penempatan: jempol kiri hanya untuk gerak, jempol kanan hanya untuk aksi,
  * dan tidak ada tombol di sepertiga atas layar — di situ letak HUD, dan jempol
@@ -35,14 +39,14 @@ export const TOUCH = {
    * pindah perangkat tidak perlu belajar ulang.
    */
   BUTTONS: [
-    { id: 'attack', label: 'J', x: 420, y: 222, radius: 27 },
-    { id: 'skill1', label: 'K', x: 366, y: 206, radius: 19 },
-    { id: 'skill2', label: 'L', x: 424, y: 166, radius: 19 },
-    { id: 'dash', label: '>>', x: 312, y: 236, radius: 21 },
+    { id: 'attack', label: 'J', right: 60, bottom: 48, radius: 27 },
+    { id: 'skill1', label: 'K', right: 114, bottom: 64, radius: 19 },
+    { id: 'skill2', label: 'L', right: 56, bottom: 104, radius: 19 },
+    { id: 'dash', label: '>>', right: 168, bottom: 34, radius: 21 },
   ],
 
   /** Tombol jeda, jauh dari jempol supaya tidak tertekan tak sengaja. */
-  PAUSE: { x: 462, y: 16, radius: 12 },
+  PAUSE: { right: 18, top: 16, radius: 12 },
 
   /**
    * Transparansi saat tidak ditekan. Ini SATU-SATUNYA pengatur transparansi

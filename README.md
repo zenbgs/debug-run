@@ -56,6 +56,10 @@ Stiknya **analog sungguhan**: dorongan setengah berarti jalan setengah cepat, da
 arahnya bebas — bukan empat tombol arah yang disamarkan. Mainkan sambil mendatar;
 layar tegak menampilkan ajakan memutar perangkat.
 
+Kanvasnya **mengisi layar penuh**, tanpa bilah hitam: tinggi logisnya dikunci 270 px
+sementara lebarnya mengikuti rasio perangkat. Terukur di layar 844x390 — kanvas
+mengisi 99,9% x 100%.
+
 ## Isi permainan
 
 - **10 wave** dengan kurva kesulitan menanjak, plus **2 boss** di wave 5 dan 10
