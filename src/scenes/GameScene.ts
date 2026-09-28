@@ -3,6 +3,7 @@ import { BIOMES, biomeForWave, type Biome } from '../data/biomes';
 import { isBossType, SPAWNABLE_BY_ID, type BossType } from '../data/bosses';
 import { CAMERA, TILE } from '../data/config';
 import { DEPTH } from '../data/depth';
+import { ELITE } from '../data/elites';
 import type { EnemyType } from '../data/enemies';
 import { EMPTY } from '../data/tiles';
 import { SHEETS } from '../data/frames';
@@ -15,6 +16,7 @@ import { Enemy } from '../entities/Enemy';
 import {
   Player,
   PLAYER_ATTACK_EVENT,
+  PLAYER_DASH_EVENT,
   PLAYER_DIED_EVENT,
   type Facing,
   type PlayerAttackPayload,
@@ -22,6 +24,7 @@ import {
 import { buildArena } from '../systems/ArenaBuilder';
 import { audio } from '../systems/Audio';
 import { BossAttacks } from '../systems/BossAttacks';
+import { CameraFx } from '../systems/CameraFx';
 import { CombatSystem } from '../systems/CombatSystem';
 import { DamageNumbers } from '../systems/DamageNumbers';
 import { commitRun, type RecordEntry } from '../systems/Records';
@@ -66,6 +69,7 @@ export class GameScene extends Phaser.Scene {
 
   private debugGraphics?: Phaser.GameObjects.Graphics;
   private hud!: Hud;
+  private cameraFx!: CameraFx;
   private pausePanel?: { destroy: () => void };
 
   private state: SceneState = 'playing';
@@ -139,6 +143,7 @@ export class GameScene extends Phaser.Scene {
     this.player.setDepth(DEPTH.PLAYER);
     this.physics.add.collider(this.player, this.obstacles);
     this.player.on(PLAYER_ATTACK_EVENT, this.onPlayerAttack, this);
+    this.player.on(PLAYER_DASH_EVENT, () => this.cameraFx.onDash());
     this.player.once(PLAYER_DIED_EVENT, this.onPlayerDied, this);
 
     this.enemyGroup = this.physics.add.group({ runChildUpdate: false });
@@ -172,6 +177,7 @@ export class GameScene extends Phaser.Scene {
     camera.setRoundPixels(true);
 
     this.hud = new Hud(this);
+    this.cameraFx = new CameraFx(this);
     this.createDebugOverlay();
     this.setupRestart();
 
@@ -231,6 +237,7 @@ export class GameScene extends Phaser.Scene {
     const boss = new Boss(this, x, y, type, context);
     this.activeBoss = boss;
     this.hud.showBoss(type.bossName);
+    this.cameraFx.onBossSpawn();
     return boss;
   }
 
@@ -323,13 +330,18 @@ export class GameScene extends Phaser.Scene {
    */
   private registerKill(enemy: Enemy): void {
     const pengali = this.streak.registerKill(this.time.now);
+    this.cameraFx.onKill();
     this.kills++;
-    this.score += enemy.config.score * pengali;
+    // Elite lebih berharga; kalau tidak, musuh yang lebih sulit justru memberi
+    // poin per detik yang lebih sedikit daripada musuh biasa.
+    const bonusElite = enemy.eliteModifier?.score ?? 1;
+    this.score += Math.round(enemy.config.score * bonusElite) * pengali;
     this.invalidateAliveCache();
 
     // Dipanggil setelah cache dibatalkan supaya ledakan melihat daftar terbaru.
     this.applyDeathBlast(enemy.x, enemy.y, enemy);
     this.applyChainSpark(enemy.x, enemy.y, enemy);
+    this.applyEliteBlast(enemy);
   }
 
   /**
@@ -358,6 +370,35 @@ export class GameScene extends Phaser.Scene {
     playFx(this, SHEETS.FX_ELECTRO_SHOCK.key, terdekat.x, terdekat.y, { scale: 0.4 });
     this.damageNumbers.show(terdekat.x, terdekat.y, damage, 'hit');
     if (terdekat.takeDamage(damage, 0, 0)) this.registerKill(terdekat);
+  }
+
+  /**
+   * Elite "Peledak" meledak saat mati — melukai musuh lain DAN pemain.
+   *
+   * Melukai pemain itu disengaja: ledakan yang hanya menguntungkan pemain
+   * membuat elite ini jadi hadiah, bukan ancaman.
+   */
+  private applyEliteBlast(enemy: Enemy): void {
+    const damage = enemy.eliteModifier?.deathBlast ?? 0;
+    if (damage <= 0) return;
+
+    playFx(this, SHEETS.FX_ENEMY_DEATH.key, enemy.x, enemy.y, { scale: 1.4 });
+    this.cameras.main.shake(160, 0.007);
+
+    for (const lain of this.aliveEnemies) {
+      if (lain === enemy || !lain.isAlive) continue;
+      if (Phaser.Math.Distance.Between(enemy.x, enemy.y, lain.x, lain.y) > ELITE.BLAST_RADIUS) {
+        continue;
+      }
+      this.damageNumbers.show(lain.x, lain.y, damage, 'hit');
+      if (lain.takeDamage(damage, 0, 0)) this.registerKill(lain);
+    }
+
+    const kePemain = Phaser.Math.Distance.Between(enemy.x, enemy.y, this.player.x, this.player.y);
+    if (kePemain <= ELITE.BLAST_RADIUS && this.player.takeDamage(damage, enemy.x, enemy.y)) {
+      this.damageNumbers.show(this.player.x, this.player.y, damage, 'hurt');
+      this.breakKillStreak();
+    }
   }
 
   /** Rantai turun satu tingkat saat pemain kena. */
@@ -410,6 +451,7 @@ export class GameScene extends Phaser.Scene {
   private onWaveCleared(wave: Wave): void {
     this.score += waveClearBonus(wave.number);
     audio.play('waveClear');
+    this.cameraFx.onWaveCleared();
 
     // Wave terakhir kampanye langsung menuju layar kemenangan, tanpa upgrade.
     // Di mode tanpa batas tidak ada "wave terakhir", jadi upgrade tetap ditawarkan.
@@ -543,6 +585,7 @@ export class GameScene extends Phaser.Scene {
       }
       this.breakKillStreak();
       this.cameras.main.shake(140, 0.006);
+      this.cameraFx.onHurt();
       // Sengaja TIDAK pakai camera.flash(): efek itu beranjak dari alpha 1, jadi
       // seluruh layar tersapu merah pekat dan bikin silau. Tint singkat pada sprite
       // pemain menyampaikan hal yang sama tanpa menutupi arena.
@@ -555,6 +598,7 @@ export class GameScene extends Phaser.Scene {
 
   /** Menghentikan semua gerak. Dipakai saat kalah maupun menang. */
   private freezeEverything(): void {
+    this.cameraFx.reset();
     this.bossAttacks.clear();
     this.hud.hideBoss();
     this.activeBoss = undefined;

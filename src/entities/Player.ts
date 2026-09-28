@@ -19,6 +19,9 @@ export const PLAYER_ATTACK_EVENT = 'player-attack';
 /** Dipancarkan sekali saat HP pemain habis. */
 export const PLAYER_DIED_EVENT = 'player-died';
 
+/** Dipancarkan saat dash benar-benar mulai — bukan saat tombolnya ditekan. */
+export const PLAYER_DASH_EVENT = 'player-dash';
+
 export type PlayerAttackPayload = {
   step: AttackStep;
   x: number;
@@ -249,6 +252,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // pemicu akan memakai kecepatan jalan yang lama dan memangkas jarak dash.
     this.applyDashVelocity();
     audio.play('select');
+    this.emit(PLAYER_DASH_EVENT);
   }
 
   private applyDashVelocity(): void {

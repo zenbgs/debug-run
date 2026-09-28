@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { isBossType, SPAWNABLE_BY_ID } from '../data/bosses';
 import { SPAWNER, type EnemyType } from '../data/enemies';
+import { ELITES, eliteChance } from '../data/elites';
 import { buildEndlessWave } from '../data/endless';
 import { WAVES, WAVE_TIMING, type Wave } from '../data/waves';
 import { Enemy } from '../entities/Enemy';
@@ -242,6 +243,13 @@ export class WaveManager {
 
     this.queue.shift();
     const enemy = this.callbacks.createEnemy(type, point.x, point.y);
+
+    // Elite diundi di sini, bukan di data wave: peluangnya naik mengikuti nomor
+    // wave, dan boss tidak boleh ikut diundi — ia sudah punya perannya sendiri.
+    if (!this.isBossId(typeId) && Math.random() < eliteChance(this.wave.number)) {
+      enemy.applyElite(Phaser.Utils.Array.GetRandom([...ELITES]));
+    }
+
     this.callbacks.onSpawn(enemy);
   }
 

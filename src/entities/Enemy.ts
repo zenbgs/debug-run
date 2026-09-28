@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { BOSS_TYPES } from '../data/bosses';
 import { COMBAT } from '../data/combat';
 import { CHARGER, ENEMY_TYPES, SHOOTER, ZIGZAG, type EnemyType } from '../data/enemies';
+import { DEPTH } from '../data/depth';
+import { ELITE, type EliteModifier } from '../data/elites';
 import { ALL_SHEETS, SHEETS } from '../data/frames';
 import { audio } from '../systems/Audio';
 import { playFx } from '../systems/Fx';
@@ -45,6 +47,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private shootReadyAt = 0;
   private shootWindupUntil = 0;
   private aiming = false;
+
+  /** Sifat elite yang dipasang, kalau ada. */
+  private elite?: EliteModifier;
+  /** Cincin penanda elite. Mengikuti posisi musuh tiap frame. */
+  private ring?: Phaser.GameObjects.Arc;
 
   /** Pelacak macet — lihat catatan di `applyUnstick`. */
   private lastX = 0;
@@ -113,6 +120,41 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   get isAlive(): boolean {
     return this.active && this.hp > 0;
+  }
+
+  /** Sifat elite musuh ini, atau `undefined` kalau ia musuh biasa. */
+  get eliteModifier(): EliteModifier | undefined {
+    return this.elite;
+  }
+
+  /**
+   * Jadikan musuh ini elite.
+   *
+   * Dipanggil SEKALI tepat setelah dibuat, sebelum sempat bergerak. Cincin
+   * penanda wajib ada: musuh yang tiba-tiba menerima tiga kali pukulan tanpa
+   * tanda apa pun terbaca sebagai bug, bukan sebagai tantangan.
+   */
+  applyElite(mod: EliteModifier): void {
+    this.elite = mod;
+    this.hp = Math.round(this.hp * mod.hp);
+    this.setScale(this.config.scale * mod.scale);
+
+    const jari = Math.max(this.displayWidth, this.displayHeight) * ELITE.RING_SCALE * 0.5;
+    this.ring = this.scene.add
+      .circle(this.x, this.y, jari, mod.ringColor, 0)
+      .setStrokeStyle(1, mod.ringColor, 0.9)
+      // Depth TETAP, bukan `this.depth - 1`.
+      //
+      // `applyElite` dipanggil sebelum scene sempat menyetel depth musuh, jadi
+      // `this.depth` masih 0 dan cincinnya mendarat di -1 — di bawah layer tanah,
+      // dan tidak pernah terlihat sama sekali. Ketahuan hanya dari tangkapan layar.
+      // DEPTH.ENEMY - 1 ada di atas peta dan tepat di bawah musuhnya.
+      .setDepth(DEPTH.ENEMY - 1);
+  }
+
+  /** Kecepatan setelah pengali elite. */
+  private get speed(): number {
+    return this.config.speed * (this.elite?.speed ?? 1);
   }
 
   /** HP mentah saat ini — dipakai menghitung damage yang benar-benar masuk. */
@@ -188,6 +230,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   private die(): void {
+    this.ring?.destroy();
+    this.ring = undefined;
     playFx(this.scene, SHEETS.FX_ENEMY_DEATH.key, this.x, this.y, { scale: 0.7 });
     spawnDeathBurst(this.scene, this.x, this.y, this.config.tint ?? 0xffffff);
     audio.play('kill');
@@ -199,6 +243,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   tick(target: Phaser.Math.Vector2, now: number, deltaSeconds: number): void {
     const body = this.body as Phaser.Physics.Arcade.Body | null;
     if (!body) return;
+
+    this.ring?.setPosition(this.x, this.y);
 
     // Terpaku: diam total, AI tidak jalan.
     if (now < this.stunnedUntil) {
@@ -268,7 +314,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     // Lapis 1: meluncur menyusuri tembok.
     const blocked = body.blocked;
-    const speed = this.config.speed;
+    const speed = this.speed;
     if ((blocked.left && body.velocity.x < 0) || (blocked.right && body.velocity.x > 0)) {
       body.setVelocity(0, (target.y >= this.y ? 1 : -1) * speed);
     } else if ((blocked.up && body.velocity.y < 0) || (blocked.down && body.velocity.y > 0)) {
@@ -289,7 +335,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   private moveChase(body: Phaser.Physics.Arcade.Body, target: Phaser.Math.Vector2): void {
     const dir = this.directionTo(target);
-    body.setVelocity(dir.x * this.config.speed, dir.y * this.config.speed);
+    body.setVelocity(dir.x * this.speed, dir.y * this.speed);
   }
 
   private moveZigzag(
@@ -301,8 +347,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // Vektor tegak lurus arah kejar, dikalikan gelombang sinus.
     const wobble =
       Math.sin(now / 1000 * ZIGZAG.FREQUENCY + this.wobbleOffset) * ZIGZAG.AMPLITUDE;
-    const vx = (dir.x + -dir.y * wobble) * this.config.speed;
-    const vy = (dir.y + dir.x * wobble) * this.config.speed;
+    const vx = (dir.x + -dir.y * wobble) * this.speed;
+    const vy = (dir.y + dir.x * wobble) * this.speed;
     body.setVelocity(vx, vy);
   }
 
@@ -341,7 +387,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (Math.abs(selisih) > SHOOTER.RANGE_TOLERANCE) {
       // Terlalu jauh -> mendekat; terlalu dekat -> mundur.
       const arah = selisih > 0 ? 1 : -1;
-      body.setVelocity(dir.x * this.config.speed * arah, dir.y * this.config.speed * arah);
+      body.setVelocity(dir.x * this.speed * arah, dir.y * this.speed * arah);
     } else {
       body.setVelocity(0, 0);
     }
@@ -390,10 +436,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
 
     if (this.chargerPhase === 'dash') {
-      body.setVelocity(
-        this.chargerDirection.x * this.config.speed,
-        this.chargerDirection.y * this.config.speed
-      );
+      body.setVelocity(this.chargerDirection.x * this.speed, this.chargerDirection.y * this.speed);
       return;
     }
 

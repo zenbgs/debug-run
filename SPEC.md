@@ -631,6 +631,33 @@ kini memakai `UI_DEPTH.TEXT` secara eksplisit.
 Teks kartu dibatasi 19 karakter oleh tes: di lebar logis tersempit kartunya hanya
 ~126 px, dan teks lebih panjang akan membungkus lalu menembus dasar kartu.
 
+### 6.3 Musuh elite
+
+Ada delapan tipe musuh tapi hanya **empat perilaku**, dan empat di antaranya
+`chase` polos yang bedanya cuma tint dan angka. Di run panjang pemain melawan hal
+yang sama berjam-jam.
+
+Elite tidak menambah sprite: ia mengubah musuh yang ada dengan satu sifat
+menonjol (`src/data/elites.ts`) dan **selalu** memasang cincin berwarna.
+
+| Elite | HP | Kecepatan | Skor | Cincin |
+|---|---|---|---|---|
+| Tebal | x2,6 | x0,85 | x2,5 | oranye |
+| Gesit | x0,8 | x1,7 | x2 | biru |
+| Peledak | x1,4 | x1 | x2,5 | merah |
+
+Peluangnya nol sampai wave 4, lalu naik ke batas 30%. Wave awal harus mengajarkan
+musuh biasa dulu; elite di wave 1 hanya terbaca sebagai "kenapa yang ini tidak
+mati". Batas atas ada supaya penandanya tetap berarti.
+
+⚠️ **Cincin memakai depth TETAP (`DEPTH.ENEMY - 1`), bukan `this.depth - 1`.**
+`applyElite()` dipanggil sebelum scene menyetel depth musuh, jadi `this.depth`
+masih 0 dan cincinnya mendarat di -1 — di bawah layer tanah, tidak pernah terlihat
+sama sekali. Ketahuan hanya dari tangkapan layar, bukan dari tes.
+
+Elite "Gesit" sengaja ber-HP di bawah normal: yang cepat harus tetap bisa
+dijatuhkan cepat, kalau tidak ia melelahkan tanpa menambah ketegangan.
+
 ### 8.2 Rekor tersimpan
 
 `src/systems/Records.ts`. Skor, wave terjauh, rantai terbaik, dan jumlah kill
