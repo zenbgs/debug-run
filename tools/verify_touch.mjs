@@ -10,6 +10,8 @@
  *  3. Arah bebas, tidak disnap ke 8 penjuru.
  *  4. Multi-sentuh: gerak dan serang bersamaan dengan dua jari.
  *  5. Tombol jeda tidak langsung menjeda ulang setelah dilanjutkan.
+ *  6. Kanvas mengisi layar penuh — termasuk SETELAH bilah alamat ponsel
+ *     menyembunyikan diri, yang mengubah rasio layar di tengah permainan.
  *
  * Jalankan:  node tools/verify_touch.mjs [url]
  */
@@ -193,6 +195,53 @@ hasil.dalamDeadzone = await dorongStik(3, 0, 'geser 3 px (dalam deadzone)');
   hasil.jeda = { setelahDitekan: setelahJeda, setelahDilanjutkan: setelahLanjut };
 }
 
+// --- Bilah alamat menyembunyikan diri: rasio layar berubah di tengah permainan ---
+// Inilah penyebab "masih belum fullscreen" yang terukur: ukuran logis dihitung
+// sekali saat boot, lalu viewport bertambah tinggi dan kanvas berhenti mengisi.
+{
+  await page.setViewport({
+    width: 844,
+    height: 434,
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
+  });
+  await new Promise((r) => setTimeout(r, 800));
+
+  hasil.setelahBilahAlamatHilang = await page.evaluate(() => {
+    const g = window.__game;
+    const s = g.scene.getScene('Game');
+    const b = g.scale.canvasBounds;
+    const j = s.touch.buttonPosition('attack');
+    return {
+      layar: `${window.innerWidth}x${window.innerHeight}`,
+      ukuranLogis: `${g.scale.width}x${g.scale.height}`,
+      isiLebar: +((b.width / window.innerWidth) * 100).toFixed(1),
+      isiTinggi: +((b.height / window.innerHeight) * 100).toFixed(1),
+      // Tombol wajib tetap menempel di tepi, bukan menggantung di tengah.
+      jarakTombolDariKanan: Math.round(g.scale.width - j.x),
+    };
+  });
+
+  const j = await page.evaluate(() => {
+    const g = window.__game;
+    const b = g.scale.canvasBounds;
+    const t = g.scene.getScene('Game').touch.buttonPosition('attack');
+    return {
+      x: b.x + (t.x / g.scale.width) * b.width,
+      y: b.y + (t.y / g.scale.height) * b.height,
+    };
+  });
+  const idUji = idBerikut++;
+  await sentuh('touchStart', [{ ...j, id: idUji }]);
+  await new Promise((r) => setTimeout(r, 200));
+  hasil.setelahBilahAlamatHilang.tombolMasihBerfungsi = await page.evaluate(
+    () => window.__game.scene.getScene('Game').touch.attack
+  );
+  await sentuh('touchEnd', []);
+  await new Promise((r) => setTimeout(r, 150));
+}
+
 // --- Teks petunjuk kotak dialog ---
 hasil.petunjukDialog = await page.evaluate(async () => {
   const s = window.__game.scene.getScene('Game');
@@ -240,5 +289,6 @@ hasil.stikTidakMemicuSerangan =
 console.log('stik tidak memicu serang :', hasil.stikTidakMemicuSerangan);
 console.log('multi-sentuh             :', JSON.stringify(hasil.multiSentuh));
 console.log('jeda                     :', JSON.stringify(hasil.jeda));
+console.log('setelah bilah alamat     :', JSON.stringify(hasil.setelahBilahAlamatHilang));
 console.log('petunjuk kotak dialog    :', JSON.stringify(hasil.petunjukDialog));
 console.log('ajakan putar (potret)    :', hasil.ajakanPutarTampil);

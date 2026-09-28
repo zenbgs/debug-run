@@ -498,6 +498,23 @@ sprite terasa sama di semua perangkat); lebarnya dihitung saat boot dari rasio
 layar dan dibatasi 420–640 px. Batas atas 640 = lebar arena, jadi tepi arena tidak
 pernah tembus. Terukur di layar 844x390: logis 584x270, kanvas mengisi 99,9% x 100%.
 
+⚠️ **Ukuran logis dihitung ulang setiap area terlihat berubah, bukan sekali saat
+boot.** Di ponsel, bilah alamat menyembunyikan diri saat bermain dan tinggi
+viewport bertambah — rasio layar berubah di tengah permainan. Terukur: layar
+844x390 menjadi 844x434, kanvas tetap 844x390 dan hanya mengisi **89,9% tinggi**.
+Penyesuaian dijeda 150 ms karena ponsel memuntahkan puluhan event `resize` selama
+animasi bilah alamat. Ukuran dibaca dari `visualViewport`, bukan `innerHeight` —
+`innerHeight` tidak ikut berubah saat bilah alamat bergerak.
+
+Karena ukuran logis bisa berubah kapan saja, **`TouchControls` menata ulang
+posisinya** lewat `Phaser.Scale.Events.RESIZE`. Tanpa itu tombol yang ditempelkan
+ke tepi kanan menggantung di tengah layar setelah rasio berubah.
+
+⚠️ `height: 100%` dan `100vh` **tidak** mengikuti area terlihat di ponsel; CSS
+memakai `100dvh`. `#game` juga dipaku `position: fixed; inset: 0` — sebagai flex
+item ia berukuran mengikuti kanvas sementara kanvas mengikuti induknya, dan
+lingkaran itu tidak pernah menghasilkan layar penuh.
+
 ⚠️ Rasio dihitung sebagai **mendatar** (`maks/min`), bukan dari orientasi saat itu.
 Pemain hampir selalu membuka tautannya sambil memegang ponsel tegak; menghitung
 dari orientasi saat itu mengunci game di rasio tegak dan tetap ter-letterbox

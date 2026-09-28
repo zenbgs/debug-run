@@ -34,8 +34,12 @@ async function muatFont(): Promise<void> {
  * sambil memegang ponsel tegak.
  */
 function hitungUkuranLogis(): { width: number; height: number } {
-  const w = window.innerWidth || VIEW.WIDTH;
-  const h = window.innerHeight || VIEW.HEIGHT;
+  // `visualViewport` melaporkan area yang BENAR-BENAR terlihat. Di ponsel,
+  // `innerHeight` tidak berubah saat bilah alamat menyembunyikan diri, sehingga
+  // rasionya meleset dan kanvas menyisakan bilah hitam.
+  const vv = window.visualViewport;
+  const w = vv?.width || window.innerWidth || VIEW.WIDTH;
+  const h = vv?.height || window.innerHeight || VIEW.HEIGHT;
   const rasio = Math.max(w, h) / Math.max(1, Math.min(w, h));
 
   const lebar = Math.round(VIEW.HEIGHT * rasio);
@@ -71,9 +75,44 @@ function buatGame(): Phaser.Game {
   });
 }
 
+/**
+ * Sesuaikan ukuran logis setiap kali area terlihat berubah.
+ *
+ * Wajib, bukan penyempurnaan. Ukuran logis dihitung dari rasio layar, dan di
+ * ponsel rasio itu **berubah saat bilah alamat menyembunyikan diri**: terukur
+ * pada layar 844x390 yang menjadi 844x434, kanvas tetap 844x390 dan hanya mengisi
+ * 89,9% tinggi layar — persis bilah hitam yang dikeluhkan.
+ *
+ * Dijeda 150 ms karena ponsel memuntahkan puluhan event `resize` selama animasi
+ * bilah alamat; mengubah ukuran game di tiap event membuat layar berkedip.
+ */
+function pasangPenyesuaiUkuran(game: Phaser.Game): void {
+  let timer: number | undefined;
+
+  const sesuaikan = () => {
+    const { width, height } = hitungUkuranLogis();
+    if (game.scale.width === width && game.scale.height === height) {
+      game.scale.refresh();
+      return;
+    }
+    // Scene yang perlu menata ulang mendengarkan `Phaser.Scale.Events.RESIZE`.
+    game.scale.setGameSize(width, height);
+  };
+
+  const jadwalkan = () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(sesuaikan, 150);
+  };
+
+  window.addEventListener("resize", jadwalkan);
+  window.addEventListener("orientationchange", jadwalkan);
+  window.visualViewport?.addEventListener("resize", jadwalkan);
+}
+
 let game: Phaser.Game | undefined;
 void muatFont().then(() => {
   game = buatGame();
+  pasangPenyesuaiUkuran(game);
   if (import.meta.env.DEV) {
     (window as unknown as { __game: Phaser.Game }).__game = game;
   }

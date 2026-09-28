@@ -31,6 +31,9 @@
         margin: 0;
         padding: 0;
         height: 100%;
+        /* `dvh` mengikuti area yang benar-benar terlihat saat bilah alamat ponsel
+           muncul atau hilang; `100%`/`100vh` tidak, dan menyisakan bilah hitam. */
+        height: 100dvh;
         background: #0d0b14;
         overflow: hidden;
         /* Menahan "pull to refresh" dan pantulan scroll saat jempol menggeser
@@ -43,10 +46,17 @@
         user-select: none;
         -webkit-tap-highlight-color: transparent;
       }
-      body {
-        display: flex;
-        align-items: center;
-        justify-content: center;
+      /* Kanvas dipusatkan oleh Phaser (`autoCenter`), bukan oleh flex. Wadahnya
+         dipaku ke seluruh viewport supaya Phaser mengukur area yang benar —
+         sebagai flex item, `#game` berukuran mengikuti kanvas, dan kanvas
+         berukuran mengikuti induknya: melingkar, dan hasilnya tidak pernah penuh. */
+      #game {
+        position: fixed;
+        inset: 0;
+        display: block;
+      }
+      #game canvas {
+        display: block;
       }
       canvas {
         image-rendering: pixelated;

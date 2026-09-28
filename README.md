@@ -57,8 +57,9 @@ arahnya bebas — bukan empat tombol arah yang disamarkan. Mainkan sambil mendat
 layar tegak menampilkan ajakan memutar perangkat.
 
 Kanvasnya **mengisi layar penuh**, tanpa bilah hitam: tinggi logisnya dikunci 270 px
-sementara lebarnya mengikuti rasio perangkat. Terukur di layar 844x390 — kanvas
-mengisi 99,9% x 100%.
+sementara lebarnya mengikuti rasio perangkat — dan dihitung ulang saat bilah alamat
+ponsel muncul atau hilang, karena itu mengubah rasio layar di tengah permainan.
+Terukur mengisi 100% x 100% sebelum maupun sesudah bilah alamat bergerak.
 
 ## Isi permainan
 

@@ -5,6 +5,9 @@ import { stickVector, type VirtualInput } from './VirtualInput';
 
 type Tombol = {
   id: string;
+  /** Jarak dari tepi kanan/bawah; posisi mutlaknya dihitung ulang tiap resize. */
+  right: number;
+  bottom: number;
   lingkaran: Phaser.GameObjects.Arc;
   teks: Phaser.GameObjects.Text;
   x: number;
@@ -91,6 +94,8 @@ export class TouchControls implements VirtualInput {
 
       this.tombol.push({
         id: spec.id,
+        right: spec.right,
+        bottom: spec.bottom,
         lingkaran,
         teks,
         x: bx,
@@ -118,6 +123,36 @@ export class TouchControls implements VirtualInput {
       .setScrollFactor(0)
       .setDepth(TOUCH.DEPTH)
       .setAlpha(TOUCH.ALPHA_IDLE);
+
+    // Ukuran logis berubah saat bilah alamat ponsel muncul/hilang. Tanpa menata
+    // ulang, tombol yang ditempelkan ke tepi kanan akan menggantung di tengah.
+    scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
+    });
+  }
+
+  /** Hitung ulang posisi dari tepi layar saat ini. */
+  layout(): void {
+    const lebar = this.scene.scale.width;
+    const tinggi = this.scene.scale.height;
+
+    for (const t of this.tombol) {
+      t.x = lebar - t.right;
+      t.y = tinggi - t.bottom;
+      t.lingkaran.setPosition(t.x, t.y);
+      t.teks.setPosition(t.x, t.y);
+    }
+
+    this.pauseX = lebar - TOUCH.PAUSE.right;
+    this.pauseY = TOUCH.PAUSE.top;
+    this.pauseBtn.setPosition(this.pauseX, this.pauseY);
+    this.pauseIcon.setPosition(this.pauseX, this.pauseY);
+
+    // Stik yang sedang dipegang bisa jadi kini di luar zona; lepaskan saja.
+    this.stickBase.setVisible(false);
+    this.stickKnob.setVisible(false);
+    this.lepasSemua();
   }
 
   /**
