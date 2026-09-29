@@ -162,6 +162,55 @@ export const SHEETS = {
     frameHeight: 32,
     frames: 3,
   },
+  /**
+   * Efek benturan per kelas. Sebelumnya SEMUA benturan memakai `FX_HIT` yang
+   * sama, jadi ayunan baja, panah, dan bola api terasa identik saat mengenai.
+   */
+  FX_HIT_SLASH: {
+    key: 'fx-hit-slash',
+    path: 'assets/fx/fx-hit-slash.png',
+    frameWidth: 32,
+    frameHeight: 32,
+    frames: 7,
+  },
+  FX_HIT_PIERCE: {
+    key: 'fx-hit-pierce',
+    path: 'assets/fx/fx-hit-pierce.png',
+    frameWidth: 32,
+    frameHeight: 32,
+    frames: 5,
+  },
+  FX_HIT_ARCANE: {
+    key: 'fx-hit-arcane',
+    path: 'assets/fx/fx-hit-arcane.png',
+    frameWidth: 32,
+    frameHeight: 32,
+    frames: 7,
+  },
+  /** Ledakan elite "Peledak". */
+  FX_EXPLOSION_BIG: {
+    key: 'fx-explosion-big',
+    path: 'assets/fx/fx-explosion-big.png',
+    frameWidth: 48,
+    frameHeight: 48,
+    frames: 8,
+  },
+  /** Ledakan upgrade "Ledakan Akhir". */
+  FX_EXPLOSION_SMALL: {
+    key: 'fx-explosion-small',
+    path: 'assets/fx/fx-explosion-small.png',
+    frameWidth: 48,
+    frameHeight: 48,
+    frames: 7,
+  },
+  /** Ikon permata untuk panel upgrade. Enam warna = enam kategori. */
+  UI_GEMS: {
+    key: 'ui-gems',
+    path: 'assets/ui/ui-gems.png',
+    frameWidth: 16,
+    frameHeight: 16,
+    frames: 6,
+  },
   FX_ENEMY_DEATH: {
     key: 'fx-enemy-death',
     path: 'assets/fx/fx-enemy-death.png',

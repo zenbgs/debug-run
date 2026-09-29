@@ -44,6 +44,12 @@ penulisnya. Dukung karyanya di <https://ansimuz.itch.io/>.
 | `public/assets/fx/fx-energy-smack.png` | `.../Grotto-escape-2-FX/sprites/energy-smack/` | FX skill Purge (Mage) |
 | `public/assets/fx/fx-arcane-crescent.png` | `Assets/Explosions and Magic/Warped shooting fx/crossed/` | FX pukulan Mage |
 | `public/assets/fx/fx-arcane-blast.png` | `.../Warped shooting fx/charged/` | FX finisher Mage |
+| `public/assets/fx/fx-hit-slash.png` | `.../Warped shooting fx/hits/Hits-2/sprites/` | FX benturan Warrior |
+| `public/assets/fx/fx-hit-pierce.png` | `.../Warped shooting fx/hits/hits-1/sprites/` | FX benturan Archer |
+| `public/assets/fx/fx-hit-arcane.png` | `.../Warped shooting fx/hits/Hits-5/sprites/` | FX benturan Mage |
+| `public/assets/fx/fx-explosion-big.png` | `Assets/Explosions and Magic/Explosions pack/explosion-1-f/Sprites/` | Ledakan elite Peledak |
+| `public/assets/fx/fx-explosion-small.png` | `.../Explosions pack/explosion-1-g/Sprites/` | Upgrade "Ledakan Akhir" |
+| `public/assets/ui/ui-gems.png` | `Assets/Misc/gems/spritesheets/gems-spritesheet.png` | Ikon kategori panel upgrade |
 | `public/assets/sprites/player-arrow.png` | `Assets/Gothicvania/Misc/Dagger/` | Panah Archer |
 | `public/assets/sprites/player-fireball.png` | `.../Grotto-escape-2-FX/sprites/fire-ball/` | Bola api Mage |
 | `public/assets/sprites/boss-core.png` | `Assets/Warped/Characters/top-down-boss/PNG/sprites/boss/` | Boss wave 10 (Null Pointer) |
@@ -59,6 +65,14 @@ yang hanya dipakai layar cerita.
 Berkas di `public/assets/fx/` dan `enemy-*.png` dihasilkan oleh `tools/pack_assets.py`
 (frame per-PNG di-pack jadi strip horizontal seragam). Jalankan ulang script itu kalau
 sumbernya berubah — jangan edit hasilnya manual.
+
+`public/assets/ui/ui-gems.png` juga dihasilkan script yang sama, tapi lewat jalur
+berbeda (`potong_gems`): sumbernya satu lembar besar berisi animasi berputar untuk
+enam warna, dan yang diambil hanya frame pertama tiap warna — permata diam, bukan
+berputar, supaya tidak menarik mata dari teks upgrade di sebelahnya.
+
+Varian ledakan `explosion-1-c/d/e` sengaja **tidak** dipakai: asapnya membubung ke
+atas, yang terbaca sebagai tampak-samping dan salah untuk arena tampak-atas.
 
 ---
 

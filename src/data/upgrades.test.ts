@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { PLAYER_CLASSES, type AttackStyle } from './classes';
+import { ALL_SHEETS } from './frames';
 import {
   createBaseStats,
+  KATEGORI_GEM,
   RARITY_WEIGHT,
   UPGRADES,
   UPGRADE_CHOICES,
@@ -46,6 +48,29 @@ describe('kolam upgrade', () => {
       expect(stats.dashCooldownMultiplier, u.id).toBeGreaterThan(0);
       // Upgrade berkerugian tidak boleh sanggup membuat pemain berhenti bergerak.
       expect(stats.speedMultiplier, u.id).toBeGreaterThan(0.3);
+    }
+  });
+
+  it('tiap upgrade punya kategori yang punya ikon', () => {
+    for (const u of UPGRADES) {
+      expect(KATEGORI_GEM[u.kategori], `${u.id} -> ${u.kategori}`).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('indeks ikon berada di dalam lembar permata, dan tidak ada yang kembar', () => {
+    const sheet = ALL_SHEETS.find((s) => s.key === 'ui-gems');
+    expect(sheet, 'lembar ui-gems tidak terdaftar').toBeDefined();
+
+    const indeks = Object.values(KATEGORI_GEM);
+    for (const i of indeks) expect(i).toBeLessThan(sheet!.frames);
+    // Dua kategori berbagi warna berarti pemain tidak bisa membedakannya.
+    expect(new Set(indeks).size).toBe(indeks.length);
+  });
+
+  it('semua kategori benar-benar dipakai', () => {
+    const dipakai = new Set(UPGRADES.map((u) => u.kategori));
+    for (const kat of Object.keys(KATEGORI_GEM)) {
+      expect(dipakai.has(kat as keyof typeof KATEGORI_GEM), `kategori "${kat}" yatim`).toBe(true);
     }
   });
 

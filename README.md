@@ -156,18 +156,23 @@ kelas, semua texture terdaftar), generasi arena tiap biome (seed sama → layout
 sama, tembok tanpa celah, area spawn bersih), matematika pengali skor, dan
 matematika stik analog.
 
-Yang butuh Phaser berjalan diverifikasi oleh dua skrip yang menjalankan game
-sungguhan di Chrome headless (butuh dev server jalan dan `puppeteer` global):
+Yang butuh Phaser berjalan diverifikasi oleh skrip yang menjalankan game sungguhan
+di Chrome headless (butuh dev server jalan dan `puppeteer` global):
 
 ```bash
-node tools/verify_biomes.mjs  http://localhost:5173/   # tint & tabrakan tiap biome
-node tools/verify_touch.mjs   http://localhost:5173/   # stik, multi-sentuh, jeda
-node tools/verify_endless.mjs http://localhost:5173/   # kurva tanpa batas & rekor
+node tools/verify_biomes.mjs   http://localhost:5173/   # tint & tabrakan tiap biome
+node tools/verify_touch.mjs    http://localhost:5173/   # stik, multi-sentuh, jeda
+node tools/verify_endless.mjs  http://localhost:5173/   # kurva tanpa batas & rekor
+node tools/verify_upgrades.mjs http://localhost:5173/   # tiap upgrade benar-benar terpasang
+node tools/verify_elites.mjs   http://localhost:5173/   # elite, cincin, zoom kamera
+node tools/verify_fx.mjs       http://localhost:5173/   # FX benturan per kelas, ikon, ledakan
 ```
 
-Keduanya mengukur, bukan mengintip: `verify_biomes` membandingkan warna piksel
-hasil render dengan hasil perkalian tint yang diharapkan, dan `verify_touch`
-mengirim sentuhan lewat CDP `Input.dispatchTouchEvent`.
+Semuanya mengukur, bukan mengintip: `verify_biomes` membandingkan warna piksel
+hasil render dengan hasil perkalian tint yang diharapkan, `verify_touch` mengirim
+sentuhan lewat CDP `Input.dispatchTouchEvent`, dan `verify_fx` memicu serangan
+sungguhan lalu membaca sprite mana yang muncul — bukan menyerahkan jawabannya
+lewat parameter.
 
 ## Catatan development
 

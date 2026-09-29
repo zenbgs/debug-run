@@ -1,6 +1,13 @@
 import Phaser from 'phaser';
 import type { AttackStyle } from '../data/classes';
-import { RARITY_WEIGHT, UPGRADES, UPGRADE_CHOICES, type Upgrade } from '../data/upgrades';
+import { SHEETS } from '../data/frames';
+import {
+  KATEGORI_GEM,
+  RARITY_WEIGHT,
+  UPGRADES,
+  UPGRADE_CHOICES,
+  type Upgrade,
+} from '../data/upgrades';
 import { addText, createPanel, type PanelHandle, addTapZone } from './Ui';
 
 /**
@@ -83,6 +90,14 @@ export class UpgradePanel {
     const keyboard = this.scene.input.keyboard;
     choices.forEach((upgrade, index) => {
       const y = top + 34 + index * rowHeight;
+      // Ikon permata di kiri nama. Warnanya menandai kategori, jadi jenis
+      // tawaran terbaca sebelum teksnya sempat dibaca.
+      const ikon = this.scene.add
+        .sprite(centerX - 116, y, SHEETS.UI_GEMS.key, KATEGORI_GEM[upgrade.kategori])
+        .setOrigin(0, 0.5)
+        .setScrollFactor(0);
+      this.panel!.container.add(ikon);
+
       addText(
         this.scene,
         this.panel!,
@@ -123,6 +138,7 @@ export class UpgradePanel {
 function onPick_nothing(onPick: (upgrade: Upgrade) => void): void {
   onPick({
     id: 'none',
+    kategori: 'utilitas',
     name: 'Tidak ada',
     description: 'semua upgrade sudah maksimal',
     apply: () => {},

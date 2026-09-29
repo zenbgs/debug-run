@@ -79,6 +79,25 @@ export function createBaseStats(maxHp: number): PlayerStats {
  */
 export type Rarity = 'umum' | 'langka';
 
+/**
+ * Kategori upgrade — menentukan warna permata di panel pilihan.
+ *
+ * Ikon dipetakan per KATEGORI, bukan per upgrade. Dua puluh ikon berbeda hanya
+ * jadi dua puluh gambar kecil yang tidak berarti apa-apa; enam warna yang
+ * konsisten membuat pemain bisa membaca jenis tawaran dalam sekali lihat.
+ */
+export type Kategori = 'serang' | 'tahan' | 'gerak' | 'utilitas' | 'khas' | 'jauh';
+
+/** Indeks frame di `ui-gems` untuk tiap kategori. */
+export const KATEGORI_GEM: Record<Kategori, number> = {
+  tahan: 0, // hijau
+  jauh: 1, // oranye
+  serang: 2, // merah
+  utilitas: 3, // kuning
+  khas: 4, // merah muda — upgrade yang mengubah cara main
+  gerak: 5, // biru
+};
+
 export type Upgrade = {
   id: string;
   name: string;
@@ -90,6 +109,7 @@ export type Upgrade = {
   /** Batas berapa kali upgrade ini boleh diambil. `undefined` = tak terbatas. */
   maxStacks?: number;
   rarity?: Rarity;
+  kategori: Kategori;
   /**
    * Hanya ditawarkan ke kelas dengan gaya serang ini.
    *
@@ -120,6 +140,7 @@ export const UPGRADES: readonly Upgrade[] = [
   // ------------------------------------------------------------ angka dasar
   {
     id: 'sharp-blade',
+    kategori: 'serang',
     name: 'Pisau Tajam',
     description: '+25% damage',
     apply: (s) => {
@@ -128,6 +149,7 @@ export const UPGRADES: readonly Upgrade[] = [
   },
   {
     id: 'light-boots',
+    kategori: 'gerak',
     name: 'Sepatu Ringan',
     description: '+15% kecepatan gerak',
     apply: (s) => {
@@ -137,6 +159,7 @@ export const UPGRADES: readonly Upgrade[] = [
   },
   {
     id: 'quick-hands',
+    kategori: 'serang',
     name: 'Tangan Cepat',
     description: 'memukul 15% lebih cepat',
     apply: (s) => {
@@ -147,6 +170,7 @@ export const UPGRADES: readonly Upgrade[] = [
   },
   {
     id: 'long-reach',
+    kategori: 'serang',
     name: 'Jangkauan',
     description: '+20% jangkauan pukulan',
     apply: (s) => {
@@ -156,6 +180,7 @@ export const UPGRADES: readonly Upgrade[] = [
   },
   {
     id: 'armor',
+    kategori: 'tahan',
     name: 'Zirah',
     description: '+25 HP maks, pulih 25',
     apply: (s) => {
@@ -165,6 +190,7 @@ export const UPGRADES: readonly Upgrade[] = [
   },
   {
     id: 'patch',
+    kategori: 'tahan',
     name: 'Hotfix',
     description: 'pulih 45 HP sekarang',
     healFlat: 45,
@@ -176,6 +202,7 @@ export const UPGRADES: readonly Upgrade[] = [
   // ------------------------------------------------- mengubah cara bermain
   {
     id: 'sharp-dash',
+    kategori: 'khas',
     name: 'Dash Tajam',
     description: 'dash melukai yang dilewati',
     apply: (s) => {
@@ -188,6 +215,7 @@ export const UPGRADES: readonly Upgrade[] = [
   },
   {
     id: 'death-blast',
+    kategori: 'khas',
     name: 'Ledakan Akhir',
     description: 'musuh mati meledak',
     apply: (s) => {
@@ -198,6 +226,7 @@ export const UPGRADES: readonly Upgrade[] = [
   },
   {
     id: 'chain-spark',
+    kategori: 'khas',
     name: 'Percik Rantai',
     description: 'musuh mati menyambar terdekat',
     apply: (s) => {
@@ -208,6 +237,7 @@ export const UPGRADES: readonly Upgrade[] = [
   },
   {
     id: 'thorns',
+    kategori: 'khas',
     name: 'Duri',
     description: '60% damage kontak dipantulkan',
     apply: (s) => {
@@ -218,6 +248,7 @@ export const UPGRADES: readonly Upgrade[] = [
   },
   {
     id: 'vampiric',
+    kategori: 'tahan',
     name: 'Vampirik',
     description: '8% damage jadi HP',
     apply: (s) => {
@@ -227,6 +258,7 @@ export const UPGRADES: readonly Upgrade[] = [
   },
   {
     id: 'swift-cast',
+    kategori: 'khas',
     name: 'Mantra Cepat',
     description: 'skill 20% lebih sering',
     apply: (s) => {
@@ -237,6 +269,7 @@ export const UPGRADES: readonly Upgrade[] = [
   },
   {
     id: 'quick-step',
+    kategori: 'gerak',
     name: 'Langkah Sigap',
     description: 'dash 20% lebih sering',
     apply: (s) => {
@@ -246,6 +279,7 @@ export const UPGRADES: readonly Upgrade[] = [
   },
   {
     id: 'field-kit',
+    kategori: 'tahan',
     name: 'Kotak P3K',
     description: 'pulih 12 HP tiap wave baru',
     apply: (s) => {
@@ -257,6 +291,7 @@ export const UPGRADES: readonly Upgrade[] = [
   // ------------------------------------------------------ khusus jarak jauh
   {
     id: 'split-shot',
+    kategori: 'jauh',
     name: 'Tembakan Pecah',
     description: '+1 proyektil tiap tembak',
     apply: (s) => {
@@ -268,6 +303,7 @@ export const UPGRADES: readonly Upgrade[] = [
   },
   {
     id: 'piercing-shot',
+    kategori: 'jauh',
     name: 'Tembakan Tembus',
     description: 'proyektil menembus musuh',
     apply: (s) => {
@@ -281,6 +317,7 @@ export const UPGRADES: readonly Upgrade[] = [
   // ------------------------------------------------------------ khusus melee
   {
     id: 'heavy-swing',
+    kategori: 'serang',
     name: 'Ayunan Berat',
     description: '+35% damage, gerak -8%',
     apply: (s) => {
@@ -298,6 +335,7 @@ export const UPGRADES: readonly Upgrade[] = [
   // upgrade lain mentok batas stack-nya.
   {
     id: 'scale-power',
+    kategori: 'serang',
     name: 'Tempa Ulang',
     description: '+10% damage',
     apply: (s) => {
@@ -306,6 +344,7 @@ export const UPGRADES: readonly Upgrade[] = [
   },
   {
     id: 'scale-vitality',
+    kategori: 'tahan',
     name: 'Urat Baja',
     description: '+15 HP maks, pulih 15',
     apply: (s) => {
@@ -315,6 +354,7 @@ export const UPGRADES: readonly Upgrade[] = [
   },
   {
     id: 'scale-edge',
+    kategori: 'utilitas',
     name: 'Asah Tepi',
     description: '+8% jangkauan, +5% damage',
     apply: (s) => {

@@ -93,6 +93,14 @@ export type PlayerClass = {
    */
   attackFx?: readonly AttackFx[];
 
+  /**
+   * Efek yang muncul di badan musuh saat serangan kelas ini mengenai.
+   *
+   * Wajib berbeda antar kelas: sebelumnya semuanya memakai `FX_HIT` yang sama,
+   * jadi ayunan baja, panah, dan bola api terasa identik saat mendarat.
+   */
+  hitFx: string;
+
   /** Tiga baris ringkas untuk kartu pilihan. */
   highlights: readonly string[];
 };
@@ -115,6 +123,7 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
     skillCooldownMultiplier: 1,
     dashCooldownMultiplier: 1,
     skills: ['cleave', 'warcry'],
+    hitFx: SHEETS.FX_HIT_SLASH.key,
     // Warrior memakai FX slash baja bawaan combo.
     highlights: ['HP 130 (tertebal)', 'Damage pukul +20%', 'Gerak agak lambat'],
   },
@@ -144,6 +153,7 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
       animated: false,
     },
     skills: ['volley', 'pinshot'],
+    hitFx: SHEETS.FX_HIT_PIERCE.key,
     highlights: ['Serang jarak jauh', 'Tergesit & lincah', 'HP 85 (rapuh)'],
   },
   {
@@ -189,6 +199,7 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
     skillCooldownMultiplier: 0.5,
     dashCooldownMultiplier: 1,
     skills: ['purge', 'shock'],
+    hitFx: SHEETS.FX_HIT_ARCANE.key,
     // Mage tidak mengayun senjata sama sekali.
     // Kilatan merapal di badan pemain; bola api yang melesat adalah proyektilnya.
     attackFx: [

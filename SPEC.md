@@ -181,16 +181,31 @@ yang sama dengan combo, sedangkan `volley` menembakkan panah lewat jalur proyekt
 
 Ketiga kelas menyerang dengan cara yang berbeda, bukan sekadar angka berbeda:
 
-| Kelas | Cara | FX |
-|---|---|---|
-| Warrior | ayunan melee | `slash-horizontal`, `slash-upward`, `slash-circular` |
-| Archer | proyektil panah, jangkauan 190 px, cepat (300 px/d) | panah itu sendiri |
-| Mage | proyektil bola api, jangkauan **95 px**, lambat (210 px/d) | kilatan `arcane-crescent`/`arcane-blast` + bola api |
+| Kelas | Cara | FX merapal | FX benturan |
+|---|---|---|---|
+| Warrior | ayunan melee | `slash-horizontal`, `slash-upward`, `slash-circular` | `fx-hit-slash` |
+| Archer | proyektil panah, jangkauan 190 px, cepat (300 px/d) | panah itu sendiri | `fx-hit-pierce` |
+| Mage | proyektil bola api, jangkauan **125 px**, sedang (265 px/d) | kilatan `arcane-crescent`/`arcane-blast` + bola api | `fx-hit-arcane` |
 
 **Proyektil didefinisikan per kelas** lewat `projectile` di `data/classes.ts` (texture,
 kecepatan, jangkauan, ukuran body, skala, beranimasi atau tidak). Jangkauan Mage sengaja
-dibuat pendek supaya ia tetap harus mendekat — kalau disamakan dengan Archer, tidak ada
-alasan memainkan Archer.
+dibuat lebih pendek daripada Archer supaya ia tetap harus mendekat — kalau disamakan,
+tidak ada alasan memainkan Archer. (Angkanya naik dari 95 setelah pengukuran di §5.2.1b.)
+
+**FX benturan berbeda per kelas.** Sebelumnya *semua* benturan di game memakai satu
+sprite yang sama (`fx-hit`), jadi pukulan baja, panah, dan bola api terasa identik tepat
+di momen yang paling penting — saat serangan mengenai. Bentuknya sengaja dipilih supaya
+siluetnya terbaca berbeda dalam 3–4 frame:
+
+| Kelas | Bentuk |
+|---|---|
+| Warrior | bintang 4 sudut yang pecah jadi bilah-bilah melesat — sebuah tebasan |
+| Archer | cincin yang mengembang lalu larut — gelombang tusukan |
+| Mage | semburan berduri jadi cincin sepusat, lalu retakan — sihir |
+
+Jalurnya: `PlayerClass.hitFx` → `AttackModifiers.hitFx` (melee) atau
+`peluru.setData('hitFx')` (proyektil) → parameter keempat `Enemy.takeDamage()`. Proyektil
+harus membawanya sendiri karena `PlayerProjectiles.update()` tidak tahu kelas penembaknya.
 
 `attackFx` adalah **kilatan merapal**, bukan pengganti proyektil: untuk kelas jarak jauh
 ia tampil berbarengan dengan proyektilnya. Tiap entri punya `rotates` — bentuk memanjang
@@ -377,7 +392,7 @@ Semua jalur serangan (melee, panah, skill) mencatat bunuh lewat satu fungsi
 
 ### 6.2 Upgrade antar wave
 
-10 upgrade di `src/data/upgrades.ts`, ditawarkan 3 acak tiap wave, dipilih lewat tombol
+20 upgrade di `src/data/upgrades.ts`, ditawarkan 3 acak tiap wave, dipilih lewat tombol
 1/2/3. Semuanya benar-benar terpasang ke stat; yang mudah menumpuk punya batas stack.
 
 **Pengali datar:** Pisau Tajam (+25% damage), Sepatu Ringan (+15% kecepatan), Tangan
@@ -391,10 +406,42 @@ tidak ada yang mengubah keputusan pemain:
 |---|---|---|
 | **Dash Tajam** | dash melukai musuh yang dilewati | 22 damage per dash, sekali per musuh |
 | **Ledakan Akhir** | musuh yang mati melukai tetangganya (r=34) | 14 damage ke tetangga |
+| **Percik Rantai** | musuh mati menyambar musuh terdekat (r=78) | 16 damage ke satu tetangga |
 | **Duri** | 60% damage kontak dipantulkan ke penabrak | 4,8 dari damage kontak 8 |
 
 Dash Tajam juga menjawab catatan lama bahwa dash murni defensif: ia berubah dari
 tombol panik jadi bagian dari irama menyerang.
+
+**Kelompok SKALA tanpa batas stack** (Tempa Ulang, Urat Baja, Asah Tepi) ada khusus
+untuk mode tanpa batas — lihat §6.2 Mode tanpa batas. Tanpa kelompok itu, kolam
+kehabisan variasi sekitar wave 33 dan layar upgrade menawarkan tiga kartu yang sama
+selamanya. Dikunci oleh tes di `src/data/upgrades.test.ts`.
+
+### 6.2b Ikon panel upgrade — permata per kategori
+
+Panel upgrade adalah tiga baris teks polos, dan pemain harus membaca ketiganya untuk
+tahu jenis tawarannya. Tiap upgrade sekarang punya `kategori`, dan tiap kategori punya
+satu warna permata dari `public/assets/ui/ui-gems.png`:
+
+| Kategori | Warna | Frame | Arti |
+|---|---|---|---|
+| `tahan` | hijau | 0 | bertahan hidup — HP, penyembuhan, lifesteal |
+| `jauh` | oranye | 1 | khusus kelas jarak jauh |
+| `serang` | merah | 2 | damage, kecepatan pukul, jangkauan |
+| `utilitas` | kuning | 3 | campuran |
+| `khas` | merah muda | 4 | mengubah cara main |
+| `gerak` | biru | 5 | kecepatan gerak, dash |
+
+Ikon dipetakan per **kategori**, bukan per upgrade. Dua puluh gambar kecil yang berbeda
+hanya jadi dua puluh gambar kecil; enam warna yang konsisten bisa dibaca sekali lihat.
+
+Sumbernya satu lembar 848×176 berisi animasi berputar untuk enam warna. `potong_gems()`
+di `tools/pack_assets.py` mengambil **hanya frame pertama** tiap warna (x = 64, 192, 320,
+448, 576, 704 pada y = 32, sel 16×16) — permata diam, karena ikon berputar menarik mata
+menjauh dari teks yang justru harus dibaca.
+
+Dikunci oleh tes: tiap upgrade punya kategori yang punya ikon, tiap indeks ada di dalam
+lembar, tidak ada dua kategori yang berbagi warna, dan tidak ada kategori yatim.
 
 ### 6.3 Angka damage
 
@@ -757,6 +804,23 @@ sama sekali. Ketahuan hanya dari tangkapan layar, bukan dari tes.
 Elite "Gesit" sengaja ber-HP di bawah normal: yang cepat harus tetap bisa
 dijatuhkan cepat, kalau tidak ia melelahkan tanpa menambah ketegangan.
 
+### 6.3b Ledakan khusus
+
+Elite Peledak dan upgrade "Ledakan Akhir" dulu sama-sama memakai `fx-enemy-death` —
+sprite yang juga dipakai setiap musuh biasa saat mati. Akibatnya ledakan yang
+seharusnya jadi kejadian besar tampil persis seperti kematian rutin, dan pemain
+tidak punya isyarat visual bahwa ada damage area yang baru saja terjadi.
+
+| Pemicu | Sprite | Ukuran |
+|---|---|---|
+| Elite Peledak mati | `fx-explosion-big` | 8 frame, 48×48 |
+| Upgrade "Ledakan Akhir" | `fx-explosion-small` | 7 frame, 48×48 |
+
+⚠️ Varian `explosion-1-c/d/e` **tidak** dipakai meski tersedia: asapnya membubung
+ke atas layar, yang terbaca sebagai tampak-samping. Di arena tampak-atas, "atas"
+adalah arah utara di lantai, bukan langit — alasan yang sama dengan penolakan
+sprite battle RPG di M2. Hanya varian `f` dan `g` yang mengembang radial.
+
 ### 8.2 Rekor tersimpan
 
 `src/systems/Records.ts`. Skor, wave terjauh, rantai terbaik, dan jumlah kill
@@ -851,11 +915,16 @@ Semua path relatif terhadap `Legacy Collection/Assets/`.
 | FX skill Shock | `.../sprites/electro-shock/` | 9 PNG |
 | FX proyektil | `.../sprites/fire-ball/` | 3 PNG |
 | FX musuh mati | `.../sprites/enemy-death/` | 8 PNG |
-| FX kena hit | `Explosions and Magic/Hit/Sprites/` | 3 PNG |
+| ~~FX kena hit~~ | ~~`Explosions and Magic/Hit/Sprites/`~~ | 3 PNG — diganti tiga set per kelas di bawah |
+| FX benturan Warrior | `Explosions and Magic/Warped shooting fx/hits/Hits-2/sprites/` | 7 PNG, 32×32 |
+| FX benturan Archer | `.../Warped shooting fx/hits/hits-1/sprites/` | 5 PNG, 32×32 |
+| FX benturan Mage | `.../Warped shooting fx/hits/Hits-5/sprites/` | 7 PNG, 32×32 |
+| Ledakan besar | `Explosions and Magic/Explosions pack/explosion-1-f/Sprites/` | 8 PNG, 48×48 |
+| Ledakan kecil | `.../Explosions pack/explosion-1-g/Sprites/` | 7 PNG, 48×48 |
 | Musuh organik | `TinyRPG/Characters/Battle Sprites/Living Pack 1/{Slime,Frog}/` | sheet + frame lepas |
 | Boss wave 5 | `TinyRPG/Characters/Battle Sprites/Mechanic/Sentinel.png` | 1 PNG — dipakai |
 | Boss wave 10 | `Warped/Characters/top-down-boss/PNG/` | frame lepas — dipakai |
-| Pickup | `Misc/gems/spritesheets/gems-spritesheet.png` | sheet |
+| Ikon upgrade | `Misc/gems/spritesheets/gems-spritesheet.png` | sheet 848×176 — dipotong, lihat §6.2b |
 
 **Format catatan:** spritesheet FX ansimuz punya ukuran tidak rata (mis. `slash-circular.png`
 = 312×48, tidak habis dibagi grid). **Gunakan folder `sprites/` yang berisi PNG per-frame**,

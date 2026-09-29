@@ -269,6 +269,16 @@ describe('integritas kelas dan skill', () => {
     }
   });
 
+  it('tiap kelas punya efek benturan SENDIRI', () => {
+    // Sebelumnya semua benturan memakai `fx-hit` yang sama, jadi ayunan baja,
+    // panah, dan bola api terasa identik saat mendarat di badan musuh.
+    const fx = PLAYER_CLASSES.map((c) => c.hitFx);
+    expect(new Set(fx).size, `efek benturan dipakai ulang: ${fx}`).toBe(fx.length);
+    for (const c of PLAYER_CLASSES) {
+      expect(SHEET_KEYS.has(c.hitFx), `${c.id} -> ${c.hitFx}`).toBe(true);
+    }
+  });
+
   it('texture kelas dan FX serangannya terdaftar', () => {
     for (const c of PLAYER_CLASSES) {
       expect(SHEET_KEYS.has(c.texture), c.id).toBe(true);

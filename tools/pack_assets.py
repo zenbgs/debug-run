@@ -47,6 +47,16 @@ JOBS = [
     ("fx-arcane-crescent", "fx", os.path.join(FX, "Warped shooting fx", "crossed", "sprites", "*.png")),
     ("fx-arcane-blast", "fx", os.path.join(FX, "Warped shooting fx", "charged", "sprites", "*.png")),
     ("player-arrow", "sprites", os.path.join(SRC, "Gothicvania", "Misc", "Dagger", "*.png")),
+    # Efek benturan per kelas. Sebelumnya SEMUA benturan di game memakai satu
+    # sprite yang sama (`fx-hit`), jadi pukulan baja, panah, dan bola api terasa
+    # identik saat mengenai musuh.
+    ("fx-hit-slash", "fx", os.path.join(FX, "Warped shooting fx", "hits", "Hits-2", "sprites", "*.png")),
+    ("fx-hit-pierce", "fx", os.path.join(FX, "Warped shooting fx", "hits", "hits-1", "sprites", "*.png")),
+    ("fx-hit-arcane", "fx", os.path.join(FX, "Warped shooting fx", "hits", "Hits-5", "sprites", "*.png")),
+    # Ledakan. Varian c/d/e sengaja dilewati: asapnya membubung ke ATAS, yang
+    # terbaca sebagai tampak-samping dan salah untuk arena tampak-atas.
+    ("fx-explosion-big", "fx", os.path.join(FX, "Explosions pack", "explosion-1-f", "Sprites", "*.png")),
+    ("fx-explosion-small", "fx", os.path.join(FX, "Explosions pack", "explosion-1-g", "Sprites", "*.png")),
     (
         "enemy-beetle",
         "sprites",
@@ -105,6 +115,35 @@ SALIN = [
 ]
 
 
+# Potongan grid dari satu spritesheet besar.
+#
+# Permata dipakai sebagai ikon upgrade. Sumbernya satu lembar 848x176 berisi
+# animasi berputar untuk 6 warna; yang dibutuhkan hanya frame PERTAMA tiap warna,
+# jadi ia dipotong dan disusun ulang jadi strip 6 frame.
+GEMS = os.path.join(SRC, "Misc", "gems", "spritesheets", "gems-spritesheet.png")
+# (x awal tiap warna, y baris permata polos, ukuran sel)
+GEM_X = [64, 192, 320, 448, 576, 704]
+GEM_Y = 32
+GEM_SIZE = 16
+
+
+def potong_gems() -> tuple[str, int, int, int] | None:
+    if not os.path.exists(GEMS):
+        print(f"  ! LEWAT ui-gems: tidak ada\n    {GEMS}")
+        return None
+    lembar = Image.open(GEMS).convert("RGBA")
+    out_im = Image.new("RGBA", (GEM_SIZE * len(GEM_X), GEM_SIZE), (0, 0, 0, 0))
+    for i, x in enumerate(GEM_X):
+        sel = lembar.crop((x, GEM_Y, x + GEM_SIZE, GEM_Y + GEM_SIZE))
+        out_im.paste(sel, (i * GEM_SIZE, 0))
+
+    target_dir = os.path.join(OUT, "ui")
+    os.makedirs(target_dir, exist_ok=True)
+    out_im.save(os.path.join(target_dir, "ui-gems.png"))
+    print(f"  + ui/ui-gems.png  {len(GEM_X)} frame @ {GEM_SIZE}x{GEM_SIZE}")
+    return ("ui/ui-gems", GEM_SIZE, GEM_SIZE, len(GEM_X))
+
+
 def salin(name: str, subdir: str, sumber: str) -> tuple[str, int, int] | None:
     if not os.path.exists(sumber):
         print(f"  ! LEWAT {name}: tidak ada\n    {sumber}")
@@ -149,6 +188,10 @@ def main() -> int:
 
     print("Packing aset...")
     results = [r for r in (pack(*job) for job in JOBS) if r]
+
+    gems = potong_gems()
+    if gems:
+        results.append(gems)
 
     print("\nMenyalin gambar utuh...")
     disalin = [r for r in (salin(*job) for job in SALIN) if r]

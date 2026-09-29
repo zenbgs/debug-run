@@ -180,13 +180,22 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setTint(COMBAT.STUN_TINT);
   }
 
-  /** @returns true kalau serangan ini membunuhnya. */
-  takeDamage(amount: number, knockbackX: number, knockbackY: number): boolean {
+  /**
+   * @param fxKey efek benturan. Tiap kelas punya miliknya sendiri — tanpa ini
+   *   ayunan baja, panah, dan bola api terasa identik saat mengenai musuh.
+   * @returns true kalau serangan ini membunuhnya.
+   */
+  takeDamage(
+    amount: number,
+    knockbackX: number,
+    knockbackY: number,
+    fxKey: string = SHEETS.FX_HIT.key
+  ): boolean {
     if (!this.isAlive) return false;
 
     this.hp -= amount;
 
-    playFx(this.scene, SHEETS.FX_HIT.key, this.x, this.y, { scale: 0.8 });
+    playFx(this.scene, fxKey, this.x, this.y, { scale: 0.8 });
     spawnHitSparks(this.scene, this.x, this.y);
     audio.play('hit');
     this.flash();

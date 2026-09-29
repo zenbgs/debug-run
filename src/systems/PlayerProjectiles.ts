@@ -106,6 +106,7 @@ export class PlayerProjectiles {
         damage,
         // Upgrade "Tembakan Tembus".
         pierce: player.stats.piercing,
+        hitFx: kelas.hitFx,
       });
     }
     audio.play('swing');
@@ -128,6 +129,7 @@ export class PlayerProjectiles {
         damage,
         pierce: config.pierce,
         stunMs: config.stunMs,
+        hitFx: player.playerClass.hitFx,
       });
     }
     audio.play('upgrade');
@@ -139,7 +141,15 @@ export class PlayerProjectiles {
     y: number,
     sudut: number,
     sumber: ProjectileConfig,
-    opsi: { speed: number; range: number; damage: number; pierce: boolean; stunMs?: number }
+    opsi: {
+      speed: number;
+      range: number;
+      damage: number;
+      pierce: boolean;
+      stunMs?: number;
+      /** Efek benturan; menempel di proyektil karena `update()` tidak tahu kelasnya. */
+      hitFx?: string;
+    }
   ): void {
     const sheet = SHEET_BY_KEY.get(sumber.texture);
     if (!sheet) return;
@@ -151,6 +161,7 @@ export class PlayerProjectiles {
     peluru.setData('damage', opsi.damage);
     peluru.setData('pierce', opsi.pierce);
     peluru.setData('stunMs', opsi.stunMs ?? 0);
+    peluru.setData('hitFx', opsi.hitFx);
     peluru.setData('hitIds', new Set<Enemy>());
     peluru.setData('expiresAt', this.scene.time.now + (opsi.range / opsi.speed) * 1000);
 
@@ -218,7 +229,12 @@ export class PlayerProjectiles {
         away.normalize().scale(KNOCKBACK);
 
         this.context.onHit(target, damage);
-        const mati = target.takeDamage(damage, away.x, away.y);
+        const mati = target.takeDamage(
+          damage,
+          away.x,
+          away.y,
+          (peluru.getData('hitFx') as string | undefined) ?? undefined
+        );
         if (mati) this.context.onKill(target);
         else if (stunMs > 0) target.applyStun(stunMs);
 

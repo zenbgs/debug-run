@@ -17,6 +17,8 @@ export type AttackOrigin = { x: number; y: number; facing: Facing };
 export type AttackModifiers = {
   damageMultiplier: number;
   rangeMultiplier: number;
+  /** Efek benturan milik kelas penyerang. Kosong = efek bawaan. */
+  hitFx?: string;
 };
 
 const NEUTRAL: AttackModifiers = { damageMultiplier: 1, rangeMultiplier: 1 };
@@ -98,7 +100,7 @@ export class CombatSystem {
       if (away.lengthSq() < 1) away.set(dir.x, dir.y);
       away.normalize().scale(step.knockback);
 
-      const killed = enemy.takeDamage(damage, away.x, away.y);
+      const killed = enemy.takeDamage(damage, away.x, away.y, modifiers.hitFx);
       if (!killed && step.stunMs) enemy.applyStun(step.stunMs);
       damageDealt += damage;
       hits++;

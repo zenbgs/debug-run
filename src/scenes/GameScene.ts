@@ -324,7 +324,9 @@ export class GameScene extends Phaser.Scene {
     const damage = this.player.stats.deathBlastDamage;
     if (damage <= 0) return;
 
-    playFx(this, SHEETS.FX_ENEMY_DEATH.key, x, y, { scale: 1.1 });
+    // Ledakan sendiri, bukan sprite kematian musuh yang dipakai ulang — kalau
+    // sama, upgrade ini tidak pernah terlihat sebagai sesuatu yang terjadi.
+    playFx(this, SHEETS.FX_EXPLOSION_SMALL.key, x, y, { scale: 1.3 });
     for (const enemy of this.aliveEnemies) {
       if (enemy === korban) continue;
       const jarak = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
@@ -397,7 +399,7 @@ export class GameScene extends Phaser.Scene {
     const damage = enemy.eliteModifier?.deathBlast ?? 0;
     if (damage <= 0) return;
 
-    playFx(this, SHEETS.FX_ENEMY_DEATH.key, enemy.x, enemy.y, { scale: 1.4 });
+    playFx(this, SHEETS.FX_EXPLOSION_BIG.key, enemy.x, enemy.y, { scale: 1.9 });
     this.cameras.main.shake(160, 0.007);
 
     for (const lain of this.aliveEnemies) {
@@ -600,6 +602,7 @@ export class GameScene extends Phaser.Scene {
         (skillId
           ? this.player.playerClass.skillDamageMultiplier
           : this.player.playerClass.damageMultiplier),
+      hitFx: this.player.playerClass.hitFx,
       rangeMultiplier: this.player.stats.rangeMultiplier,
     });
 
