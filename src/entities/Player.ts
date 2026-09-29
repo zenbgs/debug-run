@@ -32,6 +32,12 @@ export const PLAYER_DIED_EVENT = 'player-died';
 /** Dipancarkan saat dash benar-benar mulai — bukan saat tombolnya ditekan. */
 export const PLAYER_DASH_EVENT = 'player-dash';
 
+/**
+ * Pemain menekan tombol Overclock. Scene yang memutuskan apakah meternya penuh —
+ * `Player` tidak tahu apa-apa soal meter, sama seperti ia tidak tahu soal skor.
+ */
+export const PLAYER_OVERCLOCK_EVENT = 'player-overclock';
+
 export type PlayerAttackPayload = {
   step: AttackStep;
   x: number;
@@ -102,6 +108,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     purge: Phaser.Input.Keyboard.Key[];
     shock: Phaser.Input.Keyboard.Key[];
     dash: Phaser.Input.Keyboard.Key[];
+    overclock: Phaser.Input.Keyboard.Key[];
   };
 
   readonly playerClass: PlayerClass;
@@ -147,6 +154,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       purge: [keyboard.addKey(K.K)],
       shock: [keyboard.addKey(K.L), keyboard.addKey(K.Q)],
       dash: [keyboard.addKey(K.SPACE), keyboard.addKey(K.SHIFT)],
+      // E, bukan R: R sudah dipakai untuk mengulang setelah kalah/menang.
+      overclock: [keyboard.addKey(K.E)],
     };
 
     // Klik kanan dipakai Purge, jadi menu konteks browser harus dimatikan.
@@ -463,6 +472,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (now < this.hurtKnockbackUntil) return;
 
     const held = (group: Phaser.Input.Keyboard.Key[]) => group.some((key) => key.isDown);
+    // Overclock memakai TEKAN SEKALI, bukan tahan: dengan `held` ia akan
+    // menyala lagi seketika di frame berikutnya dan meternya habis sia-sia.
+    const justDown = (group: Phaser.Input.Keyboard.Key[]) =>
+      group.some((key) => Phaser.Input.Keyboard.JustDown(key));
 
     // Dash berjalan: kunci gerak, keluarkan bayangan, abaikan input lain.
     if (this.isDashing) {
@@ -478,6 +491,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (held(this.keys.attack) || v?.attack) this.tryAttack();
     if (held(this.keys.purge) || v?.skill1) this.trySkillSlot(0);
     if (held(this.keys.shock) || v?.skill2) this.trySkillSlot(1);
+    // Hanya melapor. Scene yang memeriksa meternya penuh atau belum — `Player`
+    // tidak tahu apa-apa soal Overclock, sama seperti ia tidak tahu soal skor.
+    if (justDown(this.keys.overclock) || v?.overclock) this.emit(PLAYER_OVERCLOCK_EVENT);
 
     // Selama sodokan, arah hadap dikunci supaya arah slash cocok dengan FX-nya.
     const lunging = now < this.lungeUntil;

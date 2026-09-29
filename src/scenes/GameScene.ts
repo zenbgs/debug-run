@@ -18,6 +18,7 @@ import {
   PLAYER_ATTACK_EVENT,
   PLAYER_DASH_EVENT,
   PLAYER_WINDUP_EVENT,
+  PLAYER_OVERCLOCK_EVENT,
   PLAYER_DIED_EVENT,
   type Facing,
   type PlayerAttackPayload,
@@ -31,6 +32,12 @@ import { DamageNumbers } from '../systems/DamageNumbers';
 import { commitRun, type RecordEntry } from '../systems/Records';
 import { Hud } from '../systems/Hud';
 import { PlayerProjectiles } from '../systems/PlayerProjectiles';
+import { Pickups } from '../systems/Pickups';
+import { spawnHitSparks } from '../systems/Particles';
+import type { PickupKind, PickupSpec } from '../data/pickups';
+import { OverclockRunner } from '../systems/Overclock';
+import { OverclockMeter } from '../systems/OverclockMeter';
+import { OVERCLOCK } from '../data/overclock';
 import { WeaponVisual } from '../systems/WeaponVisual';
 import { ScoreStreak } from '../systems/ScoreStreak';
 import { StoryStage } from '../systems/StoryStage';
@@ -82,6 +89,9 @@ export class GameScene extends Phaser.Scene {
   private debugGraphics?: Phaser.GameObjects.Graphics;
   private hud!: Hud;
   private weapon!: WeaponVisual;
+  private pickups!: Pickups;
+  private overclock = new OverclockMeter();
+  private ultimate!: OverclockRunner;
   private cameraFx!: CameraFx;
   /** Panggung cerita saat cutscene; `undefined` selama bermain. */
   private panggung?: StoryStage;
@@ -173,7 +183,13 @@ export class GameScene extends Phaser.Scene {
     this.enemyGroup = this.physics.add.group({ runChildUpdate: false });
     this.physics.add.collider(this.enemyGroup, this.obstacles);
     this.physics.add.collider(this.enemyGroup, this.enemyGroup);
-    this.physics.add.overlap(this.player, this.enemyGroup, this.onPlayerTouchedEnemy, undefined, this);
+    this.physics.add.overlap(
+      this.player,
+      this.enemyGroup,
+      this.onPlayerTouchedEnemy,
+      undefined,
+      this
+    );
 
     // Proyektil pemain (hanya dipakai kelas jarak jauh).
     this.projectiles = new PlayerProjectiles(this, {
@@ -185,6 +201,23 @@ export class GameScene extends Phaser.Scene {
       (peluru as Phaser.GameObjects.GameObject).destroy();
     });
 
+    // Permata jatuhan dan Overclock. Keduanya satu lingkaran: bunuh -> permata
+    // biru -> meter terisi -> pamungkas -> bunuh lebih banyak.
+    this.pickups = new Pickups(this, {
+      playerPosition: () => ({ x: this.player.x, y: this.player.y }),
+      onCollect: (kind, spec, x, y) => this.onPickup(kind, spec, x, y),
+    });
+
+    this.ultimate = new OverclockRunner(this, {
+      aliveEnemies: () => this.aliveEnemies,
+      onHit: (enemy, damage) => this.damageNumbers.show(enemy.x, enemy.y, damage, 'crit'),
+      onKill: (enemy) => this.registerKill(enemy),
+      onBurst: () => this.cameraFx.onBossSpawn(),
+      bounds: () => this.cameras.main.worldView,
+    });
+
+    this.player.on(PLAYER_OVERCLOCK_EVENT, () => this.tryOverclock());
+
     this.dialogue = new DialogueBox(this, this.player.playerClass.texture, SHEETS.BOSS_CORE.key);
     this.damageNumbers = new DamageNumbers(this);
 
@@ -193,7 +226,13 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.bossAttacks.bolts, this.obstacles, (bolt) => {
       (bolt as Phaser.GameObjects.GameObject).destroy();
     });
-    this.physics.add.overlap(this.player, this.bossAttacks.bolts, this.onPlayerHitByBolt, undefined, this);
+    this.physics.add.overlap(
+      this.player,
+      this.bossAttacks.bolts,
+      this.onPlayerHitByBolt,
+      undefined,
+      this
+    );
 
     const camera = this.cameras.main;
     camera.setBounds(0, 0, arena.widthInPixels, arena.heightInPixels);
@@ -367,6 +406,35 @@ export class GameScene extends Phaser.Scene {
    * Satu-satunya tempat skor bertambah dari membunuh. Semua jalur serangan
    * (melee, panah, skill) lewat sini supaya pengali tidak pernah terlewat.
    */
+  /** Permata diambil. Sistem pickup tidak tahu artinya — di sinilah artinya. */
+  private onPickup(_kind: PickupKind, spec: PickupSpec, x: number, y: number): void {
+    if (spec.heal) {
+      this.player.heal(spec.heal);
+      this.damageNumbers.show(x, y, spec.heal, 'crit');
+    }
+    if (spec.charge) this.overclock.add(spec.charge);
+    if (spec.score) this.score += spec.score;
+
+    spawnHitSparks(this, x, y);
+    audio.play('select');
+  }
+
+  /**
+   * Tombol Overclock ditekan. Meter belum penuh -> tidak terjadi apa-apa selain
+   * bunyi tolak, supaya pemain tahu tombolnya terbaca dan bukan rusak.
+   */
+  private tryOverclock(): void {
+    if (this.state !== 'playing' || this.ultimate.isActive) return;
+    if (!this.overclock.consume()) {
+      audio.play('hurt');
+      return;
+    }
+    const ult = this.ultimate.start(this.player.playerClass.id, this.player.x, this.player.y);
+    // Nama jurusnya dipinjamkan ke banner wave: pemain harus tahu apa yang baru
+    // saja ia lepaskan, dan panel ini sudah punya tata letak yang benar.
+    showWaveBanner(this, 0, 0, ult.name, 900, true);
+  }
+
   private registerKill(enemy: Enemy): void {
     const pengali = this.streak.registerKill(this.time.now);
     this.cameraFx.onKill();
@@ -378,6 +446,12 @@ export class GameScene extends Phaser.Scene {
     this.invalidateAliveCache();
 
     // Dipanggil setelah cache dibatalkan supaya ledakan melihat daftar terbaru.
+    const elite = enemy.eliteModifier !== undefined;
+    this.overclock.add(
+      enemy instanceof Boss ? OVERCLOCK.PER_BOSS : elite ? OVERCLOCK.PER_ELITE : OVERCLOCK.PER_KILL
+    );
+    this.pickups.rollDrop(enemy.x, enemy.y, elite);
+
     this.applyDeathBlast(enemy.x, enemy.y, enemy);
     this.applyChainSpark(enemy.x, enemy.y, enemy);
     this.applyEliteBlast(enemy);
@@ -568,7 +642,9 @@ export class GameScene extends Phaser.Scene {
     const dirX = facing === 'right' ? 1 : facing === 'left' ? -1 : 0;
     const dirY = facing === 'down' ? 1 : facing === 'up' ? -1 : 0;
 
-    const kelasFx = !skillId ? this.player.playerClass.attackFx?.[payload.comboIndex ?? 0] : undefined;
+    const kelasFx = !skillId
+      ? this.player.playerClass.attackFx?.[payload.comboIndex ?? 0]
+      : undefined;
     const volley = payload.skill?.kind === 'volley';
     const melee = !volley && (!payload.ranged || skillId !== undefined);
 
@@ -657,7 +733,12 @@ export class GameScene extends Phaser.Scene {
       enemyObject.y
     );
     if (hit) {
-      this.damageNumbers.show(this.player.x, this.player.y, enemyObject.config.contactDamage, 'hurt');
+      this.damageNumbers.show(
+        this.player.x,
+        this.player.y,
+        enemyObject.config.contactDamage,
+        'hurt'
+      );
 
       // Upgrade "Duri": penabrak ikut menerima sebagian damage kontaknya.
       const thorns = this.player.stats.thorns;
@@ -1078,6 +1159,7 @@ export class GameScene extends Phaser.Scene {
       score: this.score,
       multiplier: this.streak.current,
       barisAksi: `${skills}  ${dash}`,
+      overclock: this.overclock.ratio,
     };
   }
 
@@ -1126,6 +1208,8 @@ export class GameScene extends Phaser.Scene {
 
       this.bossAttacks.update(delta, this.player);
       this.projectiles.update();
+      this.pickups.update();
+      this.ultimate.update(this.player.x, this.player.y);
       this.damageNumbers.update(delta);
       this.applyDashDamage();
       this.waves.update(delta, alive.length, this.cameras.main);

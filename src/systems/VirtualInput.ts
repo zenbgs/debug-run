@@ -17,6 +17,8 @@ export type VirtualInput = {
   attack: boolean;
   skill1: boolean;
   skill2: boolean;
+  /** Tombol Overclock. Hanya berarti saat meternya penuh. */
+  overclock: boolean;
   dash: boolean;
 };
 

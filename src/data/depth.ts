@@ -8,6 +8,12 @@
 export const DEPTH = {
   GROUND: 0,
   OBJECTS: 5,
+  /**
+   * Permata jatuhan: di atas peta, tapi DI BAWAH musuh dan pemain.
+   *
+   * Kalau di atas musuh, permata menutupi hal yang sedang berusaha membunuhmu.
+   */
+  PICKUP: 6,
   ENEMY: 8,
   /** Proyektil pemain terbang tepat di bawah pemain. */
   PLAYER_PROJECTILE: 9,

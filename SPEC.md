@@ -965,6 +965,61 @@ terlihat berputar-putar di tempat. Jumlah frame wajib habis dibagi 3 — dikunci
 
 Verifikasi: `node tools/verify_enemies.mjs`.
 
+### 6.2d OVERCLOCK & permata jatuhan
+
+Dua sistem, satu lingkaran: **bunuh → permata biru → meter → pamungkas → bunuh lagi.**
+
+**Kenapa ada.** Rantai bunuh sudah lama mengalikan skor hingga x5, tapi hasilnya cuma
+angka yang naik lebih cepat — bermain rapi tidak pernah punya MOMEN. Dan sebelum ini
+membunuh musuh tidak menjatuhkan apa pun; tidak ada satu benda pun di lapangan.
+
+| Permata | Warna | Isi |
+|---|---|---|
+| `heal` | hijau | +14 HP |
+| `charge` | biru | +12 meter |
+| `score` | kuning | +40 skor |
+
+Spritenya memakai `ui-gems` yang **sudah ada** untuk ikon panel upgrade — tanpa aset
+baru. Umurnya 7 detik dengan kedipan peringatan: permata yang menunggu selamanya
+berubah dari keputusan jadi tugas memunguti. Total peluang jatuh **di bawah 1** dan
+diundi SEKALI per musuh, jadi sebagian besar musuh tidak menjatuhkan apa-apa; dengan
+undian terpisah per jenis, seekor musuh bisa menjatuhkan tiga sekaligus dan lapangan
+cepat penuh. Elite selalu menjatuhkan sesuatu.
+
+**Jurus pamungkas berbeda BENTUK, bukan cuma angka** — alasan yang sama seperti skill
+dan FX benturan:
+
+| Kelas | Bentuk | Terukur (10 musuh) |
+|---|---|---|
+| Warrior | berputar menahan, lalu melempar | 1.300 |
+| Archer | hujan panah membanjiri arena | 1.870 |
+| Mage | satu nova raksasa seketika | 1.200 |
+
+⚠️ **Dua jurus sempat praktis tidak berguna, dan keduanya lolos semua pemeriksaan
+lain.** Ini pelajaran terpenting di bagian ini:
+
+- **Archer 22 damage.** Hujannya mengundi titik acak seragam di seluruh layar. Layar
+  kamera ~157.000 px², satu panah menutupi ~2.100 px² — panah acak hampir selalu
+  mendarat di rumput kosong. Sekarang **75% panah diarahkan ke musuh** dengan sebaran
+  44 px; sisanya tetap acak supaya terlihat seperti hujan, bukan tembakan otomatis.
+- **Warrior 520.** Jurusnya melawan dirinya sendiri: dorongan 260 tiap ketukan
+  melempar musuh keluar dari radius putarannya sendiri, jadi enam dari delapan ketukan
+  tidak mengenai apa pun. Sekarang badainya **menahan lalu melempar** — dorongan 18%
+  selama berputar, penuh hanya di ketukan terakhir.
+
+`tools/verify_overclock.mjs` menjaga **rasio terkuat:terlemah ≤ 2x**. Tanpa penjaga itu
+sebuah jurus bisa kembali jadi pajangan tanpa satu tes pun gagal.
+
+⚠️ `OverclockMeter` ada di berkasnya **sendiri**, terpisah dari `Overclock.ts` yang
+mengimpor Phaser. Berkas tes yang menarik Phaser gagal dengan "window is not defined",
+dan kegagalan itu muncul sebagai *suite gagal dikumpulkan* — ringkasannya tetap menulis
+"180 lolos" sementara satu berkas tidak pernah dijalankan. Pemisahan yang sama dipakai
+`VirtualInput.ts` dan `Navigation.ts`.
+
+Overclock memakai **tekan sekali**, bukan tahan — di keyboard lewat `JustDown`, di layar
+sentuh lewat perbandingan keadaan frame sebelumnya. Dengan `held`, jempol yang menempel
+menghabiskan meter seketika setelah terisi lagi.
+
 ### 6.3 Musuh elite
 
 Ada delapan tipe musuh tapi hanya **empat perilaku**, dan empat di antaranya

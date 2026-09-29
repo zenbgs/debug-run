@@ -43,6 +43,9 @@ export const TOUCH = {
     { id: 'skill1', label: 'K', right: 114, bottom: 64, radius: 19 },
     { id: 'skill2', label: 'L', right: 56, bottom: 104, radius: 19 },
     { id: 'dash', label: '>>', right: 168, bottom: 34, radius: 21 },
+    // Overclock ditaruh paling jauh dari jempol serang: ia menghabiskan seluruh
+    // meter, jadi tertekan tak sengaja jauh lebih mahal daripada tombol lain.
+    { id: 'overclock', label: 'E', right: 116, bottom: 116, radius: 19 },
   ],
 
   /** Tombol jeda, jauh dari jempol supaya tidak tertekan tak sengaja. */

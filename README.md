@@ -34,6 +34,7 @@ Tidak butuh backend, tidak butuh konfigurasi. Jalan di browser desktop **dan di 
 | Skill 1 (berbeda tiap kelas) | `K` atau klik kanan |
 | Skill 2 (berbeda tiap kelas) | `L` atau `Q` |
 | Dash (kebal selama bergerak) | `Spasi` atau `Shift` |
+| **Overclock** (saat meter penuh) | `E` |
 | Pilih upgrade antar wave | `1` / `2` / `3` |
 | Jeda | `Esc` |
 | Senyapkan audio | `M` |
@@ -48,7 +49,7 @@ desktop ia tidak dibuat sama sekali, jadi tidak ada yang menutupi layar.
 | Aksi | Kontrol layar |
 |---|---|
 | Gerak | **stik analog** di separuh kiri, muncul di tempat jempol menyentuh |
-| Pukul / skill / dash | tombol `J` `K` `L` `>>` di kanan bawah |
+| Pukul / skill / dash / Overclock | tombol `J` `K` `L` `>>` `E` di kanan bawah |
 | Jeda | tombol `\|\|` di kanan atas |
 | Pilih upgrade, ulang, lanjut | ketuk panelnya langsung |
 
@@ -77,6 +78,12 @@ Terukur mengisi 100% x 100% sebelum maupun sesudah bilah alamat bergerak.
 - **Sentry berperisai** — menahan 80% damage dari depan, jadi kamu harus
   memutarinya. Satu-satunya musuh dengan sprite per arah, supaya arah hadapnya
   (dan sisi lemahnya) benar-benar terlihat
+- **OVERCLOCK** — meter terisi tiap membunuh; saat penuh, satu tombol melepas
+  jurus pamungkas yang berbeda tiap kelas: Warrior berputar menahan lalu melempar,
+  Archer menghujani arena dengan panah, Mage meledakkan satu nova raksasa
+- **Permata jatuhan** — musuh menjatuhkan permata hijau (pulih), biru (isi
+  Overclock), dan kuning (skor). Umurnya pendek, jadi mengambilnya adalah
+  keputusan: berani masuk kerumunan, atau mundur aman?
 - **Combo 3 pukulan** dengan hitstop, knockback, dan screen shake
 - **3 kelas karakter** dengan cara main berbeda, dipilih sebelum mulai:
   Warrior (tebal, ayunan melee), Archer (panah jarak jauh 190 px, tergesit),
@@ -172,6 +179,7 @@ node tools/verify_fx.mjs       http://localhost:5173/   # FX benturan per kelas,
 node tools/verify_weapons.mjs  http://localhost:5173/   # senjata di tangan & ayunannya
 node tools/verify_stuck.mjs    http://localhost:5173/   # musuh tersangkut di rintangan
 node tools/verify_enemies.mjs  http://localhost:5173/   # sprite per arah & perisai depan
+node tools/verify_overclock.mjs http://localhost:5173/  # permata jatuhan & jurus pamungkas
 ```
 
 Untuk menyetel letak senjata, pakai `python tools/weapon_mockup.py` lebih dulu — ia

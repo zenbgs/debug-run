@@ -32,6 +32,7 @@ export class TouchControls implements VirtualInput {
   skill1 = false;
   skill2 = false;
   dash = false;
+  overclock = false;
 
   private readonly stickBase: Phaser.GameObjects.Arc;
   private readonly stickKnob: Phaser.GameObjects.Arc;
@@ -40,6 +41,9 @@ export class TouchControls implements VirtualInput {
   private readonly pauseIcon: Phaser.GameObjects.Text;
 
   /** Pointer yang sedang memegang stik. -1 = tidak ada. */
+  /** Keadaan tombol Overclock frame sebelumnya, untuk mendeteksi tekan sekali. */
+  private ocSebelumnya = false;
+
   private stickPointerId = -1;
   private stickCx = 0;
   private stickCy = 0;
@@ -199,6 +203,7 @@ export class TouchControls implements VirtualInput {
     this.skill1 = false;
     this.skill2 = false;
     this.dash = false;
+    this.overclock = false;
     for (const t of this.tombol) t.ditekan = false;
   }
 
@@ -270,10 +275,7 @@ export class TouchControls implements VirtualInput {
       for (const t of this.tombol) {
         if (Phaser.Math.Distance.Between(p.x, p.y, t.x, t.y) <= t.radius) t.ditekan = true;
       }
-      if (
-        Phaser.Math.Distance.Between(p.x, p.y, this.pauseX, this.pauseY) <=
-        TOUCH.PAUSE.radius
-      ) {
+      if (Phaser.Math.Distance.Between(p.x, p.y, this.pauseX, this.pauseY) <= TOUCH.PAUSE.radius) {
         pauseDitekan = true;
       }
     }
@@ -287,6 +289,12 @@ export class TouchControls implements VirtualInput {
     this.skill1 = this.cari('skill1');
     this.skill2 = this.cari('skill2');
     this.dash = this.cari('dash');
+    // Dilaporkan sebagai TEKAN SEKALI, bukan tahan: `Player` memakai `justDown`
+    // untuk tombol keyboard, dan tanpa perlakuan yang sama di sini jempol yang
+    // menempel akan menghabiskan meter seketika setelah terisi lagi.
+    const ocSekarang = this.cari('overclock');
+    this.overclock = ocSekarang && !this.ocSebelumnya;
+    this.ocSebelumnya = ocSekarang;
 
     // Jeda dipicu saat jari DILEPAS, bukan saat menyentuh — kalau tidak, satu
     // sentuhan akan membuka lalu menutup jeda berkali-kali selama jari menempel.
@@ -301,9 +309,7 @@ export class TouchControls implements VirtualInput {
   }
 
   private tombolDi(x: number, y: number): boolean {
-    return this.tombol.some(
-      (t) => Phaser.Math.Distance.Between(x, y, t.x, t.y) <= t.radius
-    );
+    return this.tombol.some((t) => Phaser.Math.Distance.Between(x, y, t.x, t.y) <= t.radius);
   }
 
   private pointerAktif(): Phaser.Input.Pointer[] {

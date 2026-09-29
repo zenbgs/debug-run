@@ -30,6 +30,8 @@ export type HudState = {
   multiplier: number;
   /** Baris kedua: status skill dan dash yang sudah dirakit scene. */
   barisAksi: string;
+  /** Muatan Overclock, 0..1. 1 = siap dipakai. */
+  overclock: number;
 };
 
 /**
@@ -77,8 +79,27 @@ export class Hud {
       .fillStyle(ratio <= 0.3 ? 0xff6b6b : 0x8fd35d, 1)
       .fillRect(4, 4, Math.max(0, width * ratio), height);
 
+    // Bar Overclock, tepat di bawah bar HP dan lebih tipis: ia penting, tapi
+    // tidak boleh bersaing dengan HP yang harus terbaca paling dulu.
+    const ocY = 4 + height + 2;
+    const ocH = 4;
+    this.bar.fillStyle(0x0d0b14, 0.8).fillRect(3, ocY - 1, width + 2, ocH + 2);
+    this.bar.fillStyle(0x2a3550, 1).fillRect(4, ocY, width, ocH);
+    if (s.overclock >= 1) {
+      // Penuh: berkedip supaya tidak mungkin terlewat. Meter yang penuh diam-diam
+      // sama saja dengan tidak punya pamungkas.
+      const nyala = Math.floor(this.scene.time.now / 160) % 2 === 0;
+      this.bar.fillStyle(nyala ? 0xffffff : 0x6dd9f2, 1).fillRect(4, ocY, width, ocH);
+    } else {
+      this.bar.fillStyle(0x6dd9f2, 1).fillRect(4, ocY, Math.max(0, width * s.overclock), ocH);
+    }
+
     const hp = Math.ceil(s.hp);
-    const sidik = `${hp}|${s.maxHp}|${s.wave}|${s.sisaMusuh}|${s.score}|${s.multiplier}|${s.barisAksi}`;
+    // `overclock` sengaja TIDAK masuk sidik jari: ia berubah hampir tiap kill dan
+    // akan memaksa teks dirakit ulang terus-menerus, padahal ia digambar sebagai
+    // bar, bukan teks. Satu-satunya bagian teksnya adalah penanda siap/tidak.
+    const ocSiap = s.overclock >= 1 ? 1 : 0;
+    const sidik = `${hp}|${s.maxHp}|${s.wave}|${s.sisaMusuh}|${s.score}|${s.multiplier}|${s.barisAksi}|${ocSiap}`;
     if (sidik === this.sidikJari) return;
     this.sidikJari = sidik;
 
