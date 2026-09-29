@@ -11,6 +11,14 @@
 
 export type Vec = { x: number; y: number };
 
+/**
+ * Seberapa banyak arah tujuan dicampurkan ke arah menyusur.
+ *
+ * 0 berarti menyamping murni — musuh mengorbit rintangan tanpa pernah tiba.
+ * Terlalu besar berarti ia menekan balik ke rintangan dan menggerus lagi.
+ */
+const BIAS_MAJU = 0.45;
+
 /** Apakah titik dunia ini rintangan padat? */
 export type SolidProbe = (x: number, y: number) => boolean;
 
@@ -35,26 +43,36 @@ export function pilihArahSusur(
   dari: Vec,
   arahTujuan: Vec,
   solid: SolidProbe,
-  probePx: number
+  probePx: number,
+  biasMaju = BIAS_MAJU
 ): Vec {
   const d = normalize(arahTujuan.x, arahTujuan.y);
-  const calon: Vec[] = [
+  const sisi: Vec[] = [
     { x: -d.y, y: d.x },
     { x: d.y, y: -d.x },
   ];
 
-  const nilai = calon.map((c) => ({
-    c,
-    lowong: !solid(dari.x + c.x * probePx, dari.y + c.y * probePx),
-    // Seberapa besar arah ini tetap membawa mendekat ke tujuan.
-    maju: c.x * d.x + c.y * d.y,
-  }));
+  const nilai = sisi.map((c) => {
+    const lurus = !solid(dari.x + c.x * probePx, dari.y + c.y * probePx);
+    // Diraba juga SERONG MAJU. Sisi yang membuka jalan ke depan jauh lebih
+    // berguna daripada sisi yang kebetulan lowong di tempat, dan tanpa rabaan
+    // kedua ini tidak ada pembeda sama sekali: dua calon itu tegak lurus arah
+    // tujuan, jadi hasil kali titiknya dengan arah tujuan SELALU nol. Versi
+    // pertama memakai angka itu sebagai penentu, dan karena itu ia tidak pernah
+    // memilih apa pun — selalu calon pertama.
+    const sx = c.x + d.x;
+    const sy = c.y + d.y;
+    const sl = Math.hypot(sx, sy) || 1;
+    const serong = !solid(dari.x + (sx / sl) * probePx, dari.y + (sy / sl) * probePx);
+    return { c, skor: (lurus ? 2 : 0) + (serong ? 1 : 0) };
+  });
 
-  const bebas = nilai.filter((n) => n.lowong);
-  if (bebas.length > 0) return bebas.sort((a, b) => b.maju - a.maju)[0].c;
+  const menang = nilai.sort((a, b) => b.skor - a.skor)[0].c;
 
-  // Dua-duanya padat: ambil yang mundur paling sedikit, biar tetap bergerak.
-  return nilai.sort((a, b) => b.maju - a.maju)[0].c;
+  // Dicampur sedikit arah tujuan supaya musuh MEMUTARI rintangan sambil tetap
+  // mendekat. Menyamping murni membuatnya mengorbit tanpa pernah tiba — itu
+  // terbaca sebagai gerombolan yang berlarian ke arah lain, bukan menghampiri.
+  return normalize(menang.x + d.x * biasMaju, menang.y + d.y * biasMaju);
 }
 
 /**
@@ -73,7 +91,11 @@ export function cariTitikBebas(
   const d = normalize(arahTujuan.x, arahTujuan.y);
   const sudutDasar = Math.atan2(d.y, d.x);
 
-  for (const jarak of [jarakDasar, jarakDasar * 1.6]) {
+  // Tiga jari-jari, bukan dua. Sejak titik pendaratan diperiksa dengan LEBAR
+  // BADAN (bukan hanya pusatnya), calon yang muat jadi lebih sedikit; dengan dua
+  // jari-jari saja pencarian kadang pulang kosong, musuhnya tidak dipindahkan,
+  // dan sangkutan terpanjang naik dari ~1,8 ke ~2,5 detik.
+  for (const jarak of [jarakDasar, jarakDasar * 1.6, jarakDasar * 2.4]) {
     for (const beda of [0, 0.6, -0.6, 1.2, -1.2, 1.9, -1.9, 2.6, -2.6, Math.PI]) {
       const a = sudutDasar + beda;
       const x = dari.x + Math.cos(a) * jarak;

@@ -27,8 +27,20 @@ type ChargerPhase = 'aim' | 'dash' | 'recover';
  * yang menempel di pohon sambil bergetar — persis yang dikeluhkan.
  */
 const BLOCK_RATIO = 0.45;
-/** Selama ini terhalang padahal ingin bergerak -> dorong paksa. */
-const STUCK_LIMIT_MS = 900;
+/**
+ * Tidak berhasil mendekat selama ini -> pindahkan paksa.
+ *
+ * 1,8 detik, bukan 2,6. Pada 2,6 detik sangkutan terpanjang yang terukur persis
+ * menempel di angka itu (2,5-2,7 detik) — artinya jaring pengaman memang yang
+ * menyelesaikannya, tapi terlambat cukup lama untuk terlihat pemain. Terlalu
+ * pendek juga tidak baik: pemindahannya melompat, dan musuh yang sebenarnya
+ * sedang memutari rintangan akan disentak sebelum sempat sampai.
+ */
+const NO_PROGRESS_MS = 1800;
+/** Sedekat ini ke pemain, tidak ada lagi yang perlu dijamin. */
+const NO_PROGRESS_RADIUS = 40;
+/** Berpindah sejauh ini dari titik acuan = bukan terjepit. */
+const WEDGE_MOVE_PX = 24;
 /** Jarak dorongan paksa. Harus lebih besar dari satu tile (16 px) agar benar-benar lolos. */
 const UNSTICK_NUDGE = 22;
 /**
@@ -39,6 +51,14 @@ const UNSTICK_NUDGE = 22;
  * bersih-bersih saling meniadakan.
  */
 const SLIDE_COMMIT_MS = 420;
+/**
+ * Bobot dorongan menyamping saat tertahan MUSUH LAIN (bukan rintangan peta).
+ *
+ * Sengaja kecil dan hanya DITAMBAHKAN ke arah kejar. Mengganti arah kejar dengan
+ * arah menyamping — seperti yang sempat dilakukan — membuat gerombolan mengorbit
+ * pemain alih-alih menghampirinya.
+ */
+const DESAK_NUDGE = 0.8;
 /** Sejauh mana meraba ke depan saat menilai sisi mana yang lowong. */
 const PROBE_PX = 14;
 
@@ -75,7 +95,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   /** Pelacak macet — lihat catatan di `applyUnstick`. */
   private lastX = 0;
   private lastY = 0;
-  private stuckMs = 0;
+  /** Titik acuan untuk mengukur apakah musuh benar-benar berpindah tempat. */
+  private wedgeX = 0;
+  private wedgeY = 0;
+  private wedgeMs = 0;
   /** Arah menyusur yang sedang dipegang, beserta batas waktunya. */
   private slideX = 0;
   private slideY = 0;
@@ -336,17 +359,25 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
    *
    * Tiga lapis, dari yang paling halus ke yang paling kasar:
    *
-   *  1. **Menyusur rintangan.** Begitu perpindahan nyata jauh di bawah yang
-   *     diinginkan, musuh membelok tegak lurus ke sisi yang benar-benar LOWONG —
-   *     dirabakan ke tilemap, bukan ditebak dari posisi pemain. Arah itu
-   *     dipegang `SLIDE_COMMIT_MS` supaya tidak bergetar di sudut.
-   *  2. **Jaring pengaman.** Kalau masih terhalang setelah `STUCK_LIMIT_MS`,
-   *     musuh dipindahkan ke titik bebas terdekat.
-   *  3. Kalau semua titik calon ternyata padat, dorong ke arah pemain seperti
-   *     dulu. Jelek, tapi jauh lebih baik daripada sesi yang mustahil selesai.
+   *  1. **Menyusur rintangan peta.** Kalau ada tile padat tepat di depan arah
+   *     gerak DAN musuh benar-benar tertahan, ia membelok ke sisi yang lowong —
+   *     dirabakan ke tilemap, bukan ditebak. Arahnya dicampur sedikit arah kejar
+   *     supaya ia memutari rintangan sambil tetap mendekat.
+   *  2. **Dorongan menyamping saat berdesakan** sesama musuh. Kecil, dan hanya
+   *     DITAMBAHKAN ke arah kejar.
+   *  3. **Jaring pengaman berbasis KEMAJUAN.** Kalau musuh tidak berhasil
+   *     mendekat sama sekali selama `NO_PROGRESS_MS`, ia dipindahkan ke titik
+   *     bebas terdekat.
    *
-   * **Jangan hapus lapis 2 dan 3** — tanpa keduanya satu musuh nyangkut mengunci
-   * seluruh sesi.
+   * ⚠️ **Lapis 3 memakai kemajuan, bukan kecepatan.** Versi sebelumnya
+   * mengandalkan "sedang bergerak atau tidak", dan itu punya lubang yang tidak
+   * terlihat: `charger` bergantian antara menerjang (terhalang tembok) dan
+   * memulihkan diri (kecepatan nol). Fase kecepatan-nol me-reset penghitung
+   * macetnya, jadi jaring pengaman TIDAK PERNAH menyala dan charger yang
+   * terjepit di sudut tinggal di situ selamanya. Kemajuan ke pemain tidak bisa
+   * dikelabui begitu.
+   *
+   * **Jangan hapus lapis 3** — tanpa itu satu musuh nyangkut mengunci sesi.
    */
   private applyUnstick(
     body: Phaser.Physics.Arcade.Body,
@@ -358,31 +389,57 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.lastX = this.x;
     this.lastY = this.y;
 
-    const laju = Math.hypot(body.velocity.x, body.velocity.y);
-    const wantsToMove = laju > 5;
-    // `terhalang()` membandingkan perpindahan nyata dengan yang DIINGINKAN
-    // kecepatannya sendiri, bukan dengan ambang tetap — itu yang menangkap musuh
-    // menggerus pelan di sisi pohon, bukan hanya yang berhenti total.
-    const macet = wantsToMove && terhalang(moved, laju, deltaSeconds, BLOCK_RATIO);
+    this.jagaKemajuan(body, target, deltaSeconds);
 
-    if (!macet) {
-      this.stuckMs = 0;
-      if (now >= this.slideUntil) {
-        this.slideX = 0;
-        this.slideY = 0;
-      }
-      // Arah susur yang masih dipegang tetap dipakai sampai waktunya habis:
-      // melepasnya tepat saat mulai bergerak membuat musuh langsung membelok
-      // balik ke rintangan yang baru saja ia hindari.
-      if (this.slideX !== 0 || this.slideY !== 0) {
-        body.setVelocity(this.slideX * this.speed, this.slideY * this.speed);
+    const laju = Math.hypot(body.velocity.x, body.velocity.y);
+    if (laju <= 5) {
+      // Memang tidak sedang berusaha bergerak: charger mengincar, shooter
+      // menahan jarak, musuh ter-stun. Tidak ada yang perlu dibelokkan —
+      // jaring pengaman di atas tetap mengawasi kalau ia tidak maju-maju.
+      this.lepasSusur();
+      return;
+    }
+
+    // ⚠️ Manuver penuh HANYA dipicu rintangan TILE di depan arah gerak.
+    //
+    // Versi sebelumnya cukup melihat "bergerak lebih lambat dari yang
+    // diinginkan", dan itu salah besar: perlambatan juga terjadi karena
+    // berdesakan sesama musuh, karena drag, dan karena charger memang merayap
+    // pelan saat mengincar. Akibatnya charger masuk mode menyusur sepanjang fase
+    // incarnya lalu menyamping — terukur 0% charger sampai ke pemain, menetap di
+    // sekitar 204 px. Yang terlihat pemain: gerombolan berlarian ke arah lain.
+    const gx = body.velocity.x / laju;
+    const gy = body.velocity.y / laju;
+    const tileDepan = this.isSolid(this.x + gx * PROBE_PX, this.y + gy * PROBE_PX);
+    const tertahan = terhalang(moved, laju, deltaSeconds, BLOCK_RATIO);
+
+    if (!tileDepan) {
+      this.lepasSusur();
+
+      // Tertahan MUSUH LAIN. Untuk perilaku yang memang berjalan lurus ke
+      // pemain, diberi dorongan menyamping kecil yang DITAMBAHKAN ke arah kejar
+      // — bukan menggantikannya, dan tanpa komitmen waktu, jadi mustahil
+      // berputar-putar. `charger` dan `shooter` dikecualikan: keduanya mengatur
+      // sendiri kapan diam, mengincar, dan menerjang.
+      const lurusKePemain = this.config.behavior === 'chase' || this.config.behavior === 'zigzag';
+      if (tertahan && lurusKePemain) {
+        const d = this.directionTo(target);
+        const sisi = this.sisiMengelak(d);
+        const vx = d.x + sisi.x * DESAK_NUDGE;
+        const vy = d.y + sisi.y * DESAK_NUDGE;
+        const l = Math.hypot(vx, vy) || 1;
+        body.setVelocity((vx / l) * this.speed, (vy / l) * this.speed);
       }
       return;
     }
 
-    this.stuckMs += deltaSeconds * 1000;
+    if (!tertahan) {
+      // Ada tile di depan tapi ia masih melaju (menyerempet sudut). Belum perlu
+      // membelok; membiarkannya lewat mencegah belokan yang tidak perlu.
+      return;
+    }
 
-    // --- Lapis 1: menyusur ---
+    // --- Lapis 1: menyusuri rintangan peta ---
     if (now >= this.slideUntil || (this.slideX === 0 && this.slideY === 0)) {
       const arah = pilihArahSusur(
         { x: this.x, y: this.y },
@@ -395,29 +452,130 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.slideUntil = now + SLIDE_COMMIT_MS;
     }
     body.setVelocity(this.slideX * this.speed, this.slideY * this.speed);
-
-    // --- Lapis 2 & 3: jaring pengaman ---
-    if (this.stuckMs >= STUCK_LIMIT_MS) {
-      this.stuckMs = 0;
-      this.slideUntil = 0;
-      const bebas = cariTitikBebas(
-        { x: this.x, y: this.y },
-        { x: target.x - this.x, y: target.y - this.y },
-        (px, py) => this.isSolid(px, py),
-        UNSTICK_NUDGE
-      );
-      if (bebas) {
-        body.reset(bebas.x, bebas.y);
-      } else {
-        const dir = this.directionTo(target);
-        body.reset(this.x + dir.x * UNSTICK_NUDGE, this.y + dir.y * UNSTICK_NUDGE);
-      }
-    }
   }
 
-  /** Tanpa probe (mis. di tes), anggap tidak ada rintangan. */
+  /**
+   * Jaring pengaman: musuh yang TERJEPIT di rintangan dipindahkan ke titik bebas.
+   *
+   * Yang diukur adalah perpindahan musuh ITU SENDIRI, bukan jaraknya ke pemain.
+   * Dua versi sebelumnya sama-sama gagal justru di sini:
+   *
+   *  * Versi kecepatan ("sedang bergerak atau tidak") punya lubang pada
+   *    `charger`: ia bergantian menerjang (terhalang tembok) dan memulihkan diri
+   *    (kecepatan nol), dan fase nol itu me-reset penghitungnya — jaring pengaman
+   *    tidak pernah menyala dan charger yang terjepit tinggal di sudut selamanya.
+   *  * Versi jarak-ke-pemain punya lubang yang lebih halus: jaraknya ikut berubah
+   *    ketika PEMAIN yang bergerak. Pemain yang berjalan mendekat memberi "kemajuan"
+   *    gratis ke musuh yang sebenarnya terjepit, penghitungnya ter-reset, dan
+   *    terukur ada sangkutan 3.237 ms yang tidak pernah ditolong.
+   *
+   * Perpindahan sendiri + ada rintangan menempel tidak bisa dikelabui keduanya.
+   *
+   * `shooter` dikecualikan — ia memang menjaga jarak dan sering diam di tempat.
+   */
+  private jagaKemajuan(
+    body: Phaser.Physics.Arcade.Body,
+    target: Phaser.Math.Vector2,
+    deltaSeconds: number
+  ): void {
+    if (this.config.behavior === 'shooter') return;
+
+    const jarak = Phaser.Math.Distance.Between(this.x, this.y, target.x, target.y);
+    const geser = Math.hypot(this.x - this.wedgeX, this.y - this.wedgeY);
+
+    // Sudah di dekat pemain, atau benar-benar berpindah tempat: tidak terjepit.
+    if (jarak <= NO_PROGRESS_RADIUS || geser > WEDGE_MOVE_PX || !this.tileDiSekitar()) {
+      this.wedgeX = this.x;
+      this.wedgeY = this.y;
+      this.wedgeMs = 0;
+      return;
+    }
+
+    this.wedgeMs += deltaSeconds * 1000;
+    if (this.wedgeMs < NO_PROGRESS_MS) return;
+
+    this.wedgeMs = 0;
+    this.wedgeX = this.x;
+    this.wedgeY = this.y;
+    this.slideUntil = 0;
+
+    const bebas = cariTitikBebas(
+      { x: this.x, y: this.y },
+      { x: target.x - this.x, y: target.y - this.y },
+      (px, py) => this.areaPadat(px, py),
+      UNSTICK_NUDGE
+    );
+    // Kalau tidak ada satu pun titik yang muat, JANGAN dipindahkan paksa.
+    // Mendorong buta ke arah pemain bisa mendaratkannya di dalam pohon, dan
+    // musuh yang menembus rintangan lebih buruk daripada musuh yang telat
+    // sebentar — percobaan berikutnya toh datang tidak lama lagi.
+    if (bebas) body.reset(bebas.x, bebas.y);
+  }
+
+  /**
+   * Ada rintangan peta menempel di sekeliling musuh?
+   *
+   * Dirabakan sedikit DI LUAR badan, dan tidak bergantung arah gerak — musuh yang
+   * terjepit sering punya kecepatan nol, jadi rabaan searah kecepatan tidak bisa
+   * dipakai untuk mendeteksinya.
+   */
+  private tileDiSekitar(): boolean {
+    const body = this.body as Phaser.Physics.Arcade.Body | null;
+    const rx = (body?.width ?? 12) / 2 + 5;
+    const ry = (body?.height ?? 12) / 2 + 5;
+    return (
+      this.isSolid(this.x - rx, this.y) ||
+      this.isSolid(this.x + rx, this.y) ||
+      this.isSolid(this.x, this.y - ry) ||
+      this.isSolid(this.x, this.y + ry) ||
+      this.isSolid(this.x - rx, this.y - ry) ||
+      this.isSolid(this.x + rx, this.y - ry) ||
+      this.isSolid(this.x - rx, this.y + ry) ||
+      this.isSolid(this.x + rx, this.y + ry)
+    );
+  }
+
+  /**
+   * Sisi mengelak saat berdesakan, tetap sama selama musuh ini hidup.
+   *
+   * Dipilih dari `wobbleOffset` yang sudah diacak per musuh, bukan diundi tiap
+   * frame: kalau berubah-ubah, dua musuh yang saling menghalangi akan bergetar
+   * berlawanan arah dan tidak ada yang lolos.
+   */
+  private sisiMengelak(d: Phaser.Math.Vector2): { x: number; y: number } {
+    const tanda = Math.sin(this.wobbleOffset) >= 0 ? 1 : -1;
+    return { x: -d.y * tanda, y: d.x * tanda };
+  }
+
+  private lepasSusur(): void {
+    this.slideX = 0;
+    this.slideY = 0;
+    this.slideUntil = 0;
+  }
+
   private isSolid(x: number, y: number): boolean {
     return this.solidAt?.(x, y) ?? false;
+  }
+
+  /**
+   * Sama seperti `isSolid`, tapi memperhitungkan LEBAR BADAN musuh.
+   *
+   * Dipakai saat memilih titik pendaratan jaring pengaman. Memeriksa titik pusat
+   * saja tidak cukup: pusatnya bisa lowong sementara badannya tetap menumpuk
+   * tile di sebelahnya, dan musuh mendarat separuh di dalam pohon. Terukur 158
+   * sampel musuh berada di dalam tembok ketika hanya pusatnya yang diperiksa.
+   */
+  private areaPadat(x: number, y: number): boolean {
+    const body = this.body as Phaser.Physics.Arcade.Body | null;
+    const rx = (body?.width ?? 12) / 2;
+    const ry = (body?.height ?? 12) / 2;
+    return (
+      this.isSolid(x, y) ||
+      this.isSolid(x - rx, y - ry) ||
+      this.isSolid(x + rx, y - ry) ||
+      this.isSolid(x - rx, y + ry) ||
+      this.isSolid(x + rx, y + ry)
+    );
   }
 
   private directionTo(target: Phaser.Math.Vector2): Phaser.Math.Vector2 {

@@ -34,7 +34,10 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 
-const URL_GAME = process.argv[2] ?? 'http://localhost:5177/';
+// Bendera disaring dulu; tanpa ini `--diam` terbaca sebagai URL dan puppeteer
+// gagal dengan "Cannot navigate to invalid URL".
+const ARGS = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const URL_GAME = ARGS[0] ?? 'http://localhost:5177/';
 const OUT_DIR = 'tools/verify-out';
 
 /** Arena tetap supaya sebelum/sesudah benar-benar setara. */
@@ -62,8 +65,16 @@ page.on('pageerror', (e) => console.error('  ! error halaman:', e.message));
 
 const tidur = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Satu percobaan penuh pada satu seed arena. */
-async function coba(seed) {
+/**
+ * Satu percobaan penuh pada satu seed arena.
+ *
+ * @param bergerak pemain berjalan memutar, bukan diam. Ini skenario yang
+ *   sebenarnya dimainkan, dan ia MENGUNGKAP hal yang tidak terlihat saat pemain
+ *   diam: arah manuver yang dipegang beberapa ratus milidetik dipilih dari posisi
+ *   pemain SAAT ITU. Kalau pemainnya pindah, arah itu bisa berubah jadi menjauh,
+ *   dan gerombolan terlihat berlarian ke arah lain alih-alih menghampiri.
+ */
+async function coba(seed, bergerak) {
   await page.goto(URL_GAME, { waitUntil: 'networkidle0' });
   await page.waitForFunction(() => window.__game?.isBooted, { timeout: 20000 });
   await page.evaluate(() => {
@@ -89,18 +100,30 @@ async function coba(seed) {
     const w = s.waves.currentWave;
     w.maxAlive = 14;
     w.spawnIntervalMs = 200;
-    s.waves.queue = Array.from({ length: 60 }, (_, i) => ['glitchling', 'crawler', 'moth'][i % 3]);
+    // SEMUA perilaku ikut diuji, bukan cuma pengejar polos. `charger` dan
+    // `spitter` punya fase gerak sendiri (mengancang, menjaga jarak), dan logika
+    // menghindar rintangan berjalan SETELAH perilaku itu — jadi ia bisa
+    // membajaknya. Versi pertama harness ini hanya memakai tiga tipe pengejar,
+    // dan karena itu tidak melihat apa pun yang salah.
+    const jenis = ['glitchling', 'crawler', 'moth', 'spitter', 'charger', 'glitchling-swift'];
+    s.waves.queue = Array.from({ length: 60 }, (_, i) => jenis[i % jenis.length]);
   }, seed);
   await tidur(2600);
 
   return page.evaluate(
-    async ([durasi, sampelMs]) => {
+    async ([durasi, sampelMs, jalan]) => {
       const s = window.__game.scene.getScene('Game');
       const rekam = [];
       const mulai = performance.now();
 
       while (performance.now() - mulai < durasi) {
         const t = performance.now() - mulai;
+        if (jalan) {
+          // Berjalan memutar pelan: menjauh, lalu berbelok. Cukup untuk membuat
+          // arah kejar berubah terus tanpa keluar arena.
+          const a = (t / 2600) * Math.PI * 2;
+          s.player.setVirtualInput({ moveX: Math.cos(a), moveY: Math.sin(a), attack: false });
+        }
         const baris = [];
         for (const e of s.enemyGroup.getChildren()) {
           if (!e.active || !e.body) continue;
@@ -112,6 +135,8 @@ async function coba(seed) {
           const tile = s.obstacles?.getTileAtWorldXY(e.x + dx, e.y + dy);
           baris.push({
             id: e.name || (e.name = 'e' + baris.length + '_' + Math.round(e.x)),
+            tipe: e.config?.id ?? '?',
+            perilaku: e.config?.behavior ?? '?',
             x: +e.x.toFixed(2),
             y: +e.y.toFixed(2),
             vx: +e.body.velocity.x.toFixed(1),
@@ -132,7 +157,7 @@ async function coba(seed) {
       }
       return rekam;
     },
-    [DURASI_MS, SAMPEL_MS]
+    [DURASI_MS, SAMPEL_MS, bergerak]
   );
 }
 
@@ -219,6 +244,40 @@ function analisa(jejak) {
 
   // Jaring pengaman memindahkan musuh. Kalau ia mendarat DI DALAM tembok, yang
   // terlihat adalah musuh menembus pohon — menukar satu bug dengan bug lain.
+  /**
+   * Ukuran yang PALING penting: apakah musuh benar-benar SAMPAI ke pemain?
+   *
+   * "Tidak tersangkut" saja ternyata bisa menipu. Perbaikan yang membuat musuh
+   * terus menyamping lolos dari SEMUA ukuran sangkutan di atas, padahal musuhnya
+   * berputar-putar dan tidak pernah tiba. Yang dirasakan pemain justru itu:
+   * gerombolan yang tidak datang-datang.
+   */
+  let sampai = 0;
+  let nPengejar = 0;
+  const jarakTerdekat = [];
+  /**
+   * Per tipe musuh. `shooter` DIKECUALIKAN dari syarat "harus sampai": ia memang
+   * dirancang menjaga jarak dan menembak (SPEC 6.0b). Memaksanya mendekat
+   * menghapus seluruh gunanya. Angkanya tetap dilaporkan, hanya tidak dinilai.
+   */
+  const perTipe = new Map();
+  for (const deret of perMusuh.values()) {
+    const min = Math.min(...deret.map((p) => p.jarak));
+    const penembak = deret[0].perilaku === 'shooter';
+    if (!penembak) {
+      jarakTerdekat.push(min);
+      nPengejar++;
+      if (min <= RADIUS_SERANG) sampai++;
+    }
+    const tiba = min <= RADIUS_SERANG;
+    const tipe = deret[0].tipe ?? '?';
+    const t = perTipe.get(tipe) ?? { n: 0, sampai: 0, jarak: [] };
+    t.n++;
+    if (tiba) t.sampai++;
+    t.jarak.push(min);
+    perTipe.set(tipe, t);
+  }
+
   let sampelDiDalamTembok = 0;
   for (const deret of perMusuh.values()) {
     for (const p of deret) if (p.diDalamTembok) sampelDiDalamTembok++;
@@ -231,77 +290,147 @@ function analisa(jejak) {
     sangkutan,
     takMendekatTerlama,
     sampelDiDalamTembok,
+    sampai,
+    nPengejar,
+    jarakTerdekat,
+    perTipe,
   };
 }
 
-const semua = [];
-let sampelTotal = 0;
-let sampelNyangkut = 0;
-let musuhDiamati = 0;
-let takMendekatTerlama = 0;
-let diDalamTembok = 0;
+/** Jalankan semua seed untuk satu skenario, lalu rangkum. */
+async function babak(bergerak) {
+  const semua = [];
+  let sampelTotal = 0;
+  let sampelNyangkut = 0;
+  let musuhDiamati = 0;
+  let takMendekatTerlama = 0;
+  let diDalamTembok = 0;
+  let sampai = 0;
+  let nPengejar = 0;
+  const jarakTerdekat = [];
+  const perTipe = new Map();
 
-console.log('');
-for (const seed of SEEDS) {
-  const r = analisa(await coba(seed));
-  sampelTotal += r.sampelTotal;
-  sampelNyangkut += r.sampelNyangkut;
-  musuhDiamati += r.jumlahMusuh;
-  takMendekatTerlama = Math.max(takMendekatTerlama, r.takMendekatTerlama);
-  diDalamTembok += r.sampelDiDalamTembok;
-  for (const sg of r.sangkutan) semua.push({ ...sg, seed });
+  console.log('');
+  console.log(`--- pemain ${bergerak ? 'BERGERAK' : 'diam'} ---`);
+  for (const seed of SEEDS) {
+    const r = analisa(await coba(seed, bergerak));
+    sampelTotal += r.sampelTotal;
+    sampelNyangkut += r.sampelNyangkut;
+    musuhDiamati += r.jumlahMusuh;
+    takMendekatTerlama = Math.max(takMendekatTerlama, r.takMendekatTerlama);
+    diDalamTembok += r.sampelDiDalamTembok;
+    sampai += r.sampai;
+    nPengejar += r.nPengejar;
+    jarakTerdekat.push(...r.jarakTerdekat);
+    for (const [tipe, t] of r.perTipe) {
+      const g = perTipe.get(tipe) ?? { n: 0, sampai: 0, jarak: [] };
+      g.n += t.n;
+      g.sampai += t.sampai;
+      g.jarak.push(...t.jarak);
+      perTipe.set(tipe, g);
+    }
+    for (const sg of r.sangkutan) semua.push({ ...sg, seed });
 
-  const rint = r.sangkutan.filter((x) => x.lama >= AMBANG_LAPOR_MS && x.sebabRintangan);
-  const terlama = rint.reduce((a, x) => Math.max(a, x.lama), 0);
-  console.log(
-    `  seed ${String(seed).padStart(3)}: ${String(r.jumlahMusuh).padStart(2)} musuh, ` +
-      `rintangan ${String(rint.length).padStart(2)} kejadian, terlama ${String(terlama).padStart(5)} ms`
-  );
+    const rint = r.sangkutan.filter((x) => x.lama >= AMBANG_LAPOR_MS && x.sebabRintangan);
+    const terlama = rint.reduce((a, x) => Math.max(a, x.lama), 0);
+    console.log(
+      `  seed ${String(seed).padStart(3)}: ${String(r.jumlahMusuh).padStart(2)} musuh, ` +
+        `sampai ${String(Math.round((r.sampai / Math.max(1, r.nPengejar)) * 100)).padStart(3)}%, ` +
+        `rintangan ${String(rint.length).padStart(2)} kejadian, terlama ${String(terlama).padStart(5)} ms`
+    );
+  }
+
+  const terlihat = semua.filter((x) => x.lama >= AMBANG_LAPOR_MS);
+  const rintangan = terlihat.filter((x) => x.sebabRintangan);
+  const perID = new Map();
+  for (const x of rintangan) {
+    const k = `${x.seed}:${x.id}`;
+    perID.set(k, (perID.get(k) ?? 0) + 1);
+  }
+  const urut = jarakTerdekat.slice().sort((a, b) => a - b);
+
+  return {
+    bergerak,
+    musuhDiamati,
+    // Hanya musuh PENGEJAR yang dinilai; penembak menjaga jarak by design.
+    persenSampaiKePemain: nPengejar ? +((sampai / nPengejar) * 100).toFixed(1) : 0,
+    jarakTerdekatMedian: urut.length ? +urut[Math.floor(urut.length / 2)].toFixed(1) : 0,
+    persenWaktuDiam: sampelTotal ? +((sampelNyangkut / sampelTotal) * 100).toFixed(2) : 0,
+    kejadianRintangan: rintangan.length,
+    kejadianBerdesakan: terlihat.length - rintangan.length,
+    terlamaRintanganMs: rintangan.reduce((a, x) => Math.max(a, x.lama), 0),
+    musuhNyangkutBerulang: [...perID.values()].filter((n) => n > 1).length,
+    takMendekatTerlamaMs: takMendekatTerlama,
+    sampelMusuhDiDalamTembok: diDalamTembok,
+    perTipe: [...perTipe].map(([tipe, t]) => ({
+      tipe,
+      n: t.n,
+      persenSampai: +((t.sampai / t.n) * 100).toFixed(0),
+      jarakMedian: +t.jarak
+        .slice()
+        .sort((a, b) => a - b)
+        [Math.floor(t.jarak.length / 2)].toFixed(0),
+    })),
+  };
 }
 
-const terlihat = semua.filter((s) => s.lama >= AMBANG_LAPOR_MS);
-const rintangan = terlihat.filter((s) => s.sebabRintangan);
-const perID = new Map();
-for (const s of rintangan) {
-  const k = `${s.seed}:${s.id}`;
-  perID.set(k, (perID.get(k) ?? 0) + 1);
-}
-
-const hasil = {
-  seeds: SEEDS,
-  durasiMsPerSeed: DURASI_MS,
-  musuhDiamati,
-  sampelTotal,
-  persenWaktuDiam: sampelTotal ? +((sampelNyangkut / sampelTotal) * 100).toFixed(2) : 0,
-  kejadianRintangan: rintangan.length,
-  kejadianBerdesakan: terlihat.length - rintangan.length,
-  terlamaRintanganMs: rintangan.reduce((a, s) => Math.max(a, s.lama), 0),
-  musuhNyangkutBerulang: [...perID.values()].filter((n) => n > 1).length,
-  takMendekatTerlamaMs: takMendekatTerlama,
-  sampelMusuhDiDalamTembok: diDalamTembok,
-  contoh: rintangan
-    .slice()
-    .sort((a, b) => b.lama - a.lama)
-    .slice(0, 5),
-};
+const BERGERAK = process.argv.includes('--diam') ? [false] : [false, true];
+const hasil = [];
+for (const b of BERGERAK) hasil.push(await babak(b));
 
 mkdirSync(OUT_DIR, { recursive: true });
-writeFileSync(`${OUT_DIR}/stuck.json`, JSON.stringify({ hasil, sangkutan: terlihat }, null, 2));
+writeFileSync(`${OUT_DIR}/stuck.json`, JSON.stringify(hasil, null, 2));
 
-console.log(`\n${SEEDS.length} arena x ${DURASI_MS / 1000} detik, ${musuhDiamati} musuh:`);
-console.log(`  waktu-musuh tidak bergerak : ${hasil.persenWaktuDiam}%`);
-console.log(`  nyangkut RINTANGAN         : ${hasil.kejadianRintangan} kejadian`);
-console.log(`  terlama di rintangan       : ${hasil.terlamaRintanganMs} ms`);
-console.log(`  musuh nyangkut berulang    : ${hasil.musuhNyangkutBerulang}`);
-console.log(`  (berdesakan sesama musuh   : ${hasil.kejadianBerdesakan} — bukan bug rintangan)`);
-console.log(`  terlama TIDAK MENDEKAT     : ${hasil.takMendekatTerlamaMs} ms (didominasi desakan)`);
-console.log(`  musuh berada DI DALAM tembok: ${hasil.sampelMusuhDiDalamTembok} sampel`);
-if (hasil.contoh.length) {
-  console.log('  terlama:');
-  for (const c of hasil.contoh) {
-    console.log(`    seed ${String(c.seed).padStart(3)}  ${c.id.padEnd(14)} ${c.lama} ms`);
+console.log('');
+console.log(`${SEEDS.length} arena x ${DURASI_MS / 1000} detik per skenario:
+`);
+const kolom = (h) => `${h.bergerak ? 'BERGERAK' : 'diam'}`;
+const baris = [
+  ['SAMPAI ke pemain (%, non-penembak)', (h) => h.persenSampaiKePemain],
+  ['median jarak terdekat (px)', (h) => h.jarakTerdekatMedian],
+  ['waktu-musuh tidak bergerak (%)', (h) => h.persenWaktuDiam],
+  ['nyangkut RINTANGAN', (h) => h.kejadianRintangan],
+  ['terlama di rintangan (ms)', (h) => h.terlamaRintanganMs],
+  ['nyangkut berulang', (h) => h.musuhNyangkutBerulang],
+  ['berdesakan (bukan rintangan)', (h) => h.kejadianBerdesakan],
+  ['di dalam tembok (sampel)', (h) => h.sampelMusuhDiDalamTembok],
+];
+console.log(`  ${''.padEnd(32)}${hasil.map((h) => kolom(h).padStart(10)).join('')}`);
+for (const [label, ambil] of baris) {
+  console.log(`  ${label.padEnd(32)}${hasil.map((h) => String(ambil(h)).padStart(10)).join('')}`);
+}
+
+console.log('');
+console.log('  Per tipe musuh (persen yang sampai / median jarak terdekat):');
+for (const h of hasil) {
+  console.log(`    pemain ${h.bergerak ? 'BERGERAK' : 'diam'}:`);
+  for (const t of h.perTipe.sort((a, b) => a.persenSampai - b.persenSampai)) {
+    console.log(
+      `      ${t.tipe.padEnd(18)} ${String(t.persenSampai).padStart(3)}%  ${String(t.jarakMedian).padStart(4)} px  (n=${t.n})`
+    );
   }
 }
-console.log(`\nRincian di ${OUT_DIR}/stuck.json`);
+
+// Inilah syarat lulusnya. "Tidak tersangkut" saja tidak cukup — gerombolan yang
+// berputar-putar tanpa pernah tiba juga lolos ukuran sangkutan.
+const gagal = [];
+for (const h of hasil) {
+  if (h.persenSampaiKePemain < 90) {
+    gagal.push(`pemain ${kolom(h)}: hanya ${h.persenSampaiKePemain}% musuh sampai ke pemain`);
+  }
+  if (h.terlamaRintanganMs > 2200) {
+    gagal.push(`pemain ${kolom(h)}: ada sangkutan rintangan ${h.terlamaRintanganMs} ms`);
+  }
+}
+if (gagal.length === 0) {
+  console.log('');
+  console.log('LOLOS');
+} else {
+  console.log('');
+  console.log('GAGAL:');
+  for (const g of gagal) console.log('  ' + g);
+}
+console.log(`Rincian di ${OUT_DIR}/stuck.json`);
 
 await browser.close();
+process.exit(gagal.length === 0 ? 0 : 1);

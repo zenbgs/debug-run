@@ -591,40 +591,69 @@ tersangkut permanen di balik batu/pohon. Karena wave baru bersih kalau SEMUA mus
 satu musuh nyangkut membuat **permainan deadlock** — ini benar-benar terjadi di M4 dan
 menghentikan wave 1 selamanya.
 
-Versi pertama menanganinya dua lapis, dan **masih bocor**. Diukur pada 6 arena ber-seed
-tetap, 14 musuh, pemain diam (`tools/verify_stuck.mjs`):
+Penanganannya sudah tiga kali ditulis ulang, dan **dua di antaranya memperkenalkan
+bug yang lebih buruk daripada yang diperbaiki**. Riwayatnya disimpan di sini karena
+setiap versi gagal dengan cara yang tidak terlihat dari kode.
 
-| | Dua lapis lama | Sekarang |
-|---|---|---|
-| kejadian nyangkut rintangan | **66** | **0** |
-| sangkutan terlama | **11.526 ms** | **0 ms** |
-| musuh nyangkut berulang | 11 | 0 |
-| waktu-musuh tidak bergerak | 17,4% | 1,4% |
+Diukur pada 6 arena ber-seed tetap, 14 musuh, **semua perilaku**, dua skenario
+(pemain diam dan pemain berjalan memutar) — `tools/verify_stuck.mjs`:
 
-Tiga sebabnya, semuanya di `applyUnstick()`:
+| | v1 (dua lapis) | v2 (menyusur) | sekarang |
+|---|---|---|---|
+| sangkutan rintangan terlama | **11.526 ms** | 0 ms | **~1.100 ms** |
+| `charger` sampai ke pemain | 50% | **0%** | **92-100%** |
+| `crawler` sampai ke pemain | 89% | 39% | **89-100%** |
+| musuh di dalam tembok | 0 | 0 | 0-4 sampel |
 
-1. **Ambang macet mutlak.** `moved > 0,4 px per frame` dianggap "bergerak". Musuh yang
-   menggerus menyusuri pohon berpindah sedikit di atas itu, jadi penghitung macetnya
-   di-nol-kan tiap frame dan jaring pengaman **tidak pernah menyala**. Sekarang ambangnya
-   **nisbi**: terhalang kalau perpindahan nyata < 45% dari yang diinginkan kecepatannya
-   sendiri. Ini yang menangkap musuh bergetar menempel di pohon.
-2. **Arah menyusur ditebak dari posisi pemain**, bukan dari sisi mana yang lowong. Musuh
-   yang tersangkut di sisi panjang rintangan sering menyusur ke arah yang justru
-   memperpanjang jalannya. Sekarang kedua sisi **dirabakan ke tilemap** lewat
-   `setObstacleProbe()`, dan yang lowong yang dipilih.
-3. **Tidak ada komitmen arah.** Arah dipilih ulang tiap frame, jadi musuh di sudut
-   rintangan bergetar di tempat — satu frame ke atas, frame berikutnya ke bawah. Sekarang
-   arah dipegang `SLIDE_COMMIT_MS` (420 ms).
+**v1 — ambang macet mutlak.** `moved > 0,4 px per frame` dianggap "bergerak", jadi
+musuh yang menggerus menyusuri pohon me-reset penghitung macetnya tiap frame dan
+jaring pengaman tidak pernah menyala. Terlihat sebagai musuh menempel di pohon
+sambil bergetar.
 
-Jaring pengaman tetap ada dan **jangan dihapus** — tanpa itu satu musuh nyangkut mengunci
-seluruh sesi. Bedanya sekarang ia memindahkan musuh ke **titik bebas terdekat** hasil
-rabaan, bukan mendorong buta ke arah pemain; terukur 0 sampel musuh berada di dalam tembok,
-jadi ia tidak menukar satu bug dengan bug "musuh menembus pohon".
+**v2 — manuver dipicu "bergerak lebih lambat dari yang diinginkan".** Sangkutan
+rintangan hilang, tapi ini salah besar: perlambatan juga terjadi karena berdesakan
+sesama musuh, karena drag, dan karena `charger` memang merayap pelan saat mengincar.
+Akibatnya charger masuk mode menyusur sepanjang fase incarnya lalu bergerak
+**tegak lurus** arah kejar — terukur **0% charger sampai ke pemain**, menetap di
+sekitar 204 px. Yang dilaporkan pemain: *"monsternya jadi berlarian menjauhi
+karakter saya"*. Arah susurnya pun tegak lurus MURNI, karena tie-break-nya memakai
+hasil kali titik antara calon dan arah kejar — dan dua vektor tegak lurus selalu
+menghasilkan nol, jadi ia tidak pernah memilih apa pun.
 
-⚠️ Saat membaca hasil harness: metrik "tidak mendekat" tinggi (~11 detik) di versi lama
-**maupun** baru. Itu bukan rintangan — dengan pemain diam dan 14 musuh mengerumuninya,
-musuh di barisan belakang memang terhalang musuh lain. Yang menentukan `kejadianRintangan`.
+**Sekarang** — tiga hal dipisahkan tegas, karena ketiganya butuh jawaban berbeda:
 
+| Penyebab | Penanganan |
+|---|---|
+| **Tile rintangan di depan** | Menyusur ke sisi lowong (dirabakan ke tilemap, tie-break lewat rabaan serong-maju), arah dipegang 420 ms. Arahnya **dicampur 0,45 bagian arah kejar** supaya musuh memutari rintangan sambil tetap mendekat. |
+| **Berdesakan sesama musuh** | Dorongan menyamping kecil yang **ditambahkan** ke arah kejar, tanpa komitmen waktu. Hanya untuk `chase`/`zigzag`; `charger` dan `shooter` mengatur sendiri kapan diam, mengincar, dan menerjang. |
+| **Benar-benar terjepit** | Dipindahkan ke titik bebas terdekat. |
+
+⚠️ **Jaring pengaman memakai perpindahan MUSUH SENDIRI + ada tile menempel.**
+Dua alternatif yang lebih alami keduanya punya lubang:
+
+- *Berbasis kecepatan* gagal pada `charger`: ia bergantian menerjang (terhalang
+  tembok) dan memulihkan diri (kecepatan nol), dan fase nol itu me-reset
+  penghitungnya — jaring pengaman tidak pernah menyala.
+- *Berbasis jarak ke pemain* gagal lebih halus: jaraknya ikut berubah ketika
+  **pemain** yang bergerak. Pemain yang berjalan mendekat memberi "kemajuan" gratis
+  ke musuh yang sebenarnya terjepit; terukur ada sangkutan 3.237 ms yang tidak
+  pernah ditolong.
+
+⚠️ **Titik pendaratan diperiksa dengan LEBAR BADAN, bukan titik pusatnya.** Pusatnya
+bisa lowong sementara badannya tetap menumpuk tile di sebelahnya: terukur 158 sampel
+musuh berada di dalam tembok ketika hanya pusat yang diperiksa. Dan kalau tidak ada
+satu pun titik yang muat, musuh **tidak dipindahkan sama sekali** — mendorong buta ke
+arah pemain menukar satu bug dengan bug "musuh menembus pohon".
+
+`shooter` dikecualikan dari semuanya: ia memang menjaga jarak dan menembak (§6.0b).
+Harness juga mengecualikannya dari syarat "harus sampai", karena memaksanya mendekat
+menghapus seluruh gunanya.
+
+⚠️ **Harness wajib menguji SEMUA perilaku dan pemain yang BERGERAK.** Versi
+pertamanya hanya memakai tiga tipe pengejar dengan pemain diam, dan karena itu
+melaporkan LOLOS pada v2 — versi yang chargernya tidak pernah sampai sama sekali.
+Ukuran "tidak tersangkut" saja tidak cukup; yang menentukan adalah **persentase musuh
+yang benar-benar sampai ke pemain**.
 
 ### 6.2 Mode tanpa batas
 

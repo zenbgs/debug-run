@@ -47,9 +47,26 @@ describe('pilihArahSusur', () => {
   const asal = { x: 0, y: 0 };
   const keKanan = { x: 1, y: 0 };
 
-  it('selalu tegak lurus arah tujuan', () => {
+  it('selalu punya komponen MAJU ke tujuan, bukan menyamping murni', () => {
+    // Inilah yang membuat musuh tiba, bukan sekadar tidak nyangkut. Arah susur
+    // yang tegak lurus murni (hasil kali titik = 0) membuat musuh mengorbit
+    // rintangan selamanya; terukur 0% charger sampai ke pemain, menetap di
+    // sekitar 204 px, dan yang terlihat pemain adalah gerombolan yang berlarian
+    // ke arah lain alih-alih menghampiri.
+    for (const tujuan of [keKanan, { x: 0, y: 1 }, { x: 3, y: 4 }, { x: -2, y: 5 }]) {
+      const a = pilihArahSusur(asal, tujuan, KOSONG, 14);
+      const d = { x: tujuan.x, y: tujuan.y };
+      const l = Math.hypot(d.x, d.y);
+      const maju = (a.x * d.x + a.y * d.y) / l;
+      expect(maju, JSON.stringify(tujuan)).toBeGreaterThan(0.2);
+    }
+  });
+
+  it('tetap dominan menyamping — ia menghindar, bukan menerjang lurus', () => {
+    // Kalau komponen majunya terlalu besar, musuh menekan balik ke rintangan dan
+    // menggerus lagi alih-alih memutarinya.
     const a = pilihArahSusur(asal, keKanan, KOSONG, 14);
-    expect(Math.abs(a.x * keKanan.x + a.y * keKanan.y)).toBeLessThan(1e-9);
+    expect(Math.abs(a.y)).toBeGreaterThan(Math.abs(a.x));
   });
 
   it('hasilnya vektor satuan', () => {
