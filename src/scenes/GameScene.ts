@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { BIOMES, biomeForWave, type Biome } from '../data/biomes';
-import { isBossType, SPAWNABLE_BY_ID, type BossType } from '../data/bosses';
+import { BOSS_ATTACK, isBossType, SPAWNABLE_BY_ID, type BossType } from '../data/bosses';
 import { CAMERA, TILE } from '../data/config';
 import { DEPTH } from '../data/depth';
 import { ELITE } from '../data/elites';
@@ -34,6 +34,7 @@ import { Hud } from '../systems/Hud';
 import { PlayerProjectiles } from '../systems/PlayerProjectiles';
 import { Pickups } from '../systems/Pickups';
 import { Destructibles } from '../systems/Destructibles';
+import { Telegraph } from '../systems/Telegraph';
 import { DESTRUCTIBLE } from '../data/destructibles';
 import { spawnHitSparks } from '../systems/Particles';
 import type { PickupKind, PickupSpec } from '../data/pickups';
@@ -93,6 +94,7 @@ export class GameScene extends Phaser.Scene {
   private weapon!: WeaponVisual;
   private pickups!: Pickups;
   private destructibles!: Destructibles;
+  private telegraph!: Telegraph;
   private overclock = new OverclockMeter();
   private ultimate!: OverclockRunner;
   private cameraFx!: CameraFx;
@@ -213,6 +215,8 @@ export class GameScene extends Phaser.Scene {
 
     // Rintangan interior yang bisa dipecahkan. Dibuat setelah `obstacles` ada,
     // karena ia mengubah tile di layer itu langsung.
+    this.telegraph = new Telegraph(this);
+
     this.destructibles = new Destructibles(this, this.obstacles, {
       onBreak: (bx, by, peluang) => {
         if (Math.random() < peluang) this.pickups.rollDrop(bx, by, false);
@@ -318,13 +322,29 @@ export class GameScene extends Phaser.Scene {
       fireBolt: (bx, by, angle, speed, damage) =>
         this.bossAttacks.fireBolt(bx, by, angle, speed, damage),
       fireBeam: (bx, by, angle, damage) => this.bossAttacks.fireBeam(bx, by, angle, damage),
+      // Musuh panggilan muncul DI DALAM layar, tepat di sebelah pemain. Tanpa
+      // aba-aba ia terbaca seperti muncul dari ketiadaan; dengan retakan yang
+      // berkedip dulu, pemain sempat menjauh. (Musuh wave biasa tidak butuh ini
+      // — mereka di-spawn di LUAR kamera dan berjalan masuk.)
       summon: (typeId, sx, sy) => {
         const summonType = SPAWNABLE_BY_ID.get(typeId);
         if (!summonType) return;
-        const minion = new Enemy(this, sx, sy, summonType);
-        minion.setDepth(DEPTH.ENEMY);
-        this.enemyGroup.add(minion);
-        this.invalidateAliveCache();
+        this.telegraph.rift(sx, sy, BOSS_ATTACK.SUMMON_TELEGRAPH_MS, (fx, fy) => {
+          if (this.state !== 'playing') return;
+          const minion = this.createEnemy(summonType, fx, fy);
+          minion.setDepth(DEPTH.ENEMY);
+          this.enemyGroup.add(minion);
+          this.invalidateAliveCache();
+        });
+      },
+      slam: (sx, sy) => {
+        this.telegraph.circle(
+          sx,
+          sy,
+          BOSS_ATTACK.SLAM_RADIUS,
+          BOSS_ATTACK.SLAM_TELEGRAPH_MS,
+          (fx, fy) => this.ledakanTanah(fx, fy)
+        );
       },
     };
 
@@ -454,6 +474,21 @@ export class GameScene extends Phaser.Scene {
     // Nama jurusnya dipinjamkan ke banner wave: pemain harus tahu apa yang baru
     // saja ia lepaskan, dan panel ini sudah punya tata letak yang benar.
     showWaveBanner(this, 0, 0, ult.name, 900, true);
+  }
+
+  /** Hantaman tanah boss meledak setelah aba-abanya habis. */
+  private ledakanTanah(x: number, y: number): void {
+    playFx(this, SHEETS.FX_EXPLOSION_BIG.key, x, y, { scale: 1.5 });
+    this.cameras.main.shake(180, 0.006);
+    audio.play('hurt');
+
+    const jarak = Phaser.Math.Distance.Between(x, y, this.player.x, this.player.y);
+    if (jarak <= BOSS_ATTACK.SLAM_RADIUS) {
+      this.player.takeDamage(BOSS_ATTACK.SLAM_DAMAGE, x, y);
+    }
+    // Hantaman juga memecahkan rintangan — arena ikut berubah selama pertarungan
+    // boss, dan itu membuat fase kedua terasa berbeda dari fase pertama.
+    this.destructibles.damageAt(x, y, BOSS_ATTACK.SLAM_RADIUS, BOSS_ATTACK.SLAM_DAMAGE * 3);
   }
 
   private registerKill(enemy: Enemy): void {
@@ -1106,6 +1141,7 @@ export class GameScene extends Phaser.Scene {
     // WAJIB: tanpa ini tile di koordinat yang sama pada wave berikutnya mewarisi
     // kerusakan wave sebelumnya, dan pohon yang baru muncul sudah nyaris pecah.
     this.destructibles.reset();
+    this.telegraph.clear();
   }
 
   /**

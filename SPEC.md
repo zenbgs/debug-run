@@ -1063,6 +1063,40 @@ Verifikasi: `node tools/verify_destructibles.mjs`. Yang paling penting di sana b
 lewat — tile yang hilang secara visual tapi tetap menabrak adalah *tembok tak terlihat*,
 kegagalan paling mahal yang pernah terjadi di project ini (§10 jebakan tileset).
 
+### 6.2f Telegraf — bahaya yang bisa dibaca
+
+Serangan yang datang tanpa aba-aba tidak bisa dihindari, dan yang tidak bisa dihindari
+terasa **tidak adil**, bukan sulit. `src/systems/Telegraph.ts` menjadikan prinsip yang
+sudah dipakai telegraf Spitter dan beam boss jadi satu sistem yang bisa dipakai ulang.
+
+Penandanya **mengerut ke dalam**, bukan sekadar berkedip: pemain bisa membaca *sisa
+waktu* dari ukurannya. Kedipan hanya memberi tahu "ada bahaya", bukan "berapa lama lagi".
+Warnanya dibedakan dengan sengaja — **merah** berarti menjauh, **ungu** berarti sesuatu
+akan keluar dari sini.
+
+Digambar di `DEPTH.PICKUP`: di atas peta, tapi **di bawah** musuh dan pemain. Penanda
+yang menimpa musuh justru menyembunyikan hal yang sedang berusaha membunuhmu.
+
+**Pola boss baru: `slam`.** Beberapa lingkaran bahaya berkedip lalu meledak, dipusatkan
+di **pemain**, bukan di boss — kalau di boss, pemain yang bertarung jarak jauh tidak
+pernah tersentuh dan polanya jadi hiasan. Titik pertama tepat di pemain, sisanya
+menyebar: berdiri diam selalu salah, tapi arah larinya masih bisa dipilih. Aba-abanya
+850 ms, terpanjang di antara semua pola boss, karena ia menutup paling banyak ruang.
+Hantamannya juga **memecahkan rintangan**, jadi arena ikut berubah selama pertarungan.
+
+**Musuh panggilan boss kini bertelegraf.** Sebelumnya `patternSummon` memunculkan
+musuh seketika di radius 58 — tepat di sebelah pemain, dari ketiadaan. Sekarang ada
+retakan 420 ms lebih dulu.
+
+⚠️ **Musuh wave biasa TIDAK butuh ini.** `pickSpawnPoint` menaruh mereka di LUAR
+kamera (`view.y - margin`) dan mereka berjalan masuk; penanda di sana tidak akan pernah
+terlihat. Ini sempat diusulkan atas asumsi yang salah, lalu dibatalkan setelah kodenya
+dibaca.
+
+Verifikasi: `node tools/verify_telegraph.mjs`. Yang menentukan di sana bukan "penandanya
+muncul", melainkan **pemain yang diam kena 16 damage dan pemain yang menyingkir kena 0** —
+itulah yang membedakan telegraf dari hiasan.
+
 ### 6.3 Musuh elite
 
 Ada delapan tipe musuh tapi hanya **empat perilaku**, dan empat di antaranya

@@ -105,8 +105,10 @@ Terukur mengisi 100% x 100% sebelum maupun sesudah bilah alamat bergerak.
 - **Pengali skor dari rantai bunuh** hingga x5 — putus kalau kamu kena pukul,
   jadi bermain rapi benar-benar terbayar
 - **Layout arena acak tiap sesi**, bisa dikunci ke seed tetap saat debugging
-- Boss punya 4 pola serangan (tembakan melingkar, beam bertelegraf, memanggil musuh,
-  menerjang) dan **fase kedua** di bawah 50% HP
+- Boss punya **5 pola serangan** (tembakan melingkar, beam bertelegraf, hantaman
+  tanah bertelegraf, memanggil musuh, menerjang) dan **fase kedua** di bawah 50% HP.
+  Hantaman tanah dan musuh panggilan sama-sama diawali penanda yang mengerut —
+  bisa dibaca, jadi bisa dihindari
 
 ## Catatan teknis
 
@@ -184,6 +186,7 @@ node tools/verify_stuck.mjs    http://localhost:5173/   # musuh tersangkut di ri
 node tools/verify_enemies.mjs  http://localhost:5173/   # sprite per arah & perisai depan
 node tools/verify_overclock.mjs http://localhost:5173/  # permata jatuhan & jurus pamungkas
 node tools/verify_destructibles.mjs http://localhost:5173/ # rintangan pecah & tepi arena utuh
+node tools/verify_telegraph.mjs http://localhost:5173/  # telegraf boss: diam kena, menyingkir tidak
 ```
 
 Untuk menyetel letak senjata, pakai `python tools/weapon_mockup.py` lebih dulu — ia

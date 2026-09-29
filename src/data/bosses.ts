@@ -18,7 +18,7 @@
 import { ENEMY_TYPES, type EnemyType } from './enemies';
 import { SHEETS } from './frames';
 
-export type BossPattern = 'spread' | 'beam' | 'summon' | 'charge';
+export type BossPattern = 'spread' | 'beam' | 'summon' | 'charge' | 'slam';
 
 export type BossType = EnemyType & {
   isBoss: true;
@@ -83,7 +83,7 @@ export const BOSS_TYPES: readonly BossType[] = [
 
     // Temanya rekursi: ia memanggil salinan dirinya. Dua kali `summon` per siklus
     // dan tanpa `beam` sama sekali — beam disimpan sebagai eskalasi untuk wave 10.
-    patterns: ['charge', 'summon', 'spread', 'summon'],
+    patterns: ['charge', 'summon', 'slam', 'spread', 'summon'],
     patternIntervalMs: 2200,
     phase2At: 0.5,
     phase2IntervalScale: 0.62,
@@ -120,7 +120,7 @@ export const BOSS_TYPES: readonly BossType[] = [
 
     // Penguasa ruang: dua beam per siklus, tembakan menyebar yang rapat, dan
     // terjangan hanya sebagai hukuman kalau pemain terlalu lama menempel.
-    patterns: ['spread', 'beam', 'summon', 'spread', 'beam', 'charge'],
+    patterns: ['spread', 'beam', 'slam', 'summon', 'spread', 'beam', 'charge'],
     patternIntervalMs: 2300,
     phase2At: 0.5,
     phase2IntervalScale: 0.6,
@@ -153,6 +153,23 @@ export const BOSS_ATTACK = {
   BEAM_WIDTH: 26,
   /** Lama pola `charge` berlangsung. */
   CHARGE_MS: 700,
+
+  /**
+   * Hantaman tanah: beberapa lingkaran bahaya berkedip lalu meledak.
+   *
+   * Aba-abanya paling panjang di antara semua pola boss, dan itu disengaja —
+   * serangan ini menutup banyak ruang sekaligus, jadi ia harus benar-benar bisa
+   * dihindari. Yang dituju bukan damage, tapi memaksa pemain BERGERAK.
+   */
+  SLAM_TELEGRAPH_MS: 850,
+  SLAM_COUNT: 3,
+  SLAM_RADIUS: 34,
+  SLAM_DAMAGE: 16,
+  /** Sebaran titik hantaman di sekitar pemain. */
+  SLAM_SPREAD: 60,
+
+  /** Aba-aba retakan sebelum musuh panggilan keluar. */
+  SUMMON_TELEGRAPH_MS: 420,
   /** Umur proyektil sebelum hilang sendiri. */
   BOLT_LIFESPAN_MS: 3200,
   BOLT_SCALE: 1.6,

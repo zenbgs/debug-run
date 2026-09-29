@@ -12,7 +12,14 @@ const PHASE2_TINT = 0xff6b6b;
 export type BossContext = {
   fireBolt: (x: number, y: number, angle: number, speed: number, damage: number) => void;
   fireBeam: (x: number, y: number, angle: number, damage: number) => void;
+  /**
+   * Munculkan musuh SETELAH aba-aba di titik itu. Scene yang menggambar
+   * penandanya — boss tidak tahu apa-apa soal tampilan, sama seperti ia tidak
+   * tahu soal sistem proyektil.
+   */
   summon: (typeId: string, x: number, y: number) => void;
+  /** Hantaman tanah bertelegraf di satu titik. */
+  slam: (x: number, y: number) => void;
 };
 
 /**
@@ -143,6 +150,9 @@ export class Boss extends Enemy {
       case 'charge':
         this.patternCharge(target);
         break;
+      case 'slam':
+        this.patternSlam(target);
+        break;
     }
   }
 
@@ -186,6 +196,26 @@ export class Boss extends Enemy {
         ids[i % ids.length],
         this.x + Math.cos(angle) * distance,
         this.y + Math.sin(angle) * distance
+      );
+    }
+  }
+
+  /**
+   * Hantaman tanah di sekitar PEMAIN, bukan di sekitar boss.
+   *
+   * Kalau dipusatkan di boss, pemain yang bertarung jarak jauh tidak pernah
+   * tersentuh dan polanya jadi hiasan. Dipusatkan di pemain, ia memaksa bergerak
+   * — dan itulah gunanya.
+   */
+  private patternSlam(target: Phaser.Math.Vector2): void {
+    const n = this.phase === 2 ? BOSS_ATTACK.SLAM_COUNT + 1 : BOSS_ATTACK.SLAM_COUNT;
+    for (let i = 0; i < n; i++) {
+      // Titik pertama tepat di pemain; sisanya menyebar, jadi berdiri diam
+      // selalu salah tapi arah larinya masih bisa dipilih.
+      const sebar = i === 0 ? 0 : BOSS_ATTACK.SLAM_SPREAD;
+      this.context.slam(
+        target.x + (Math.random() - 0.5) * 2 * sebar,
+        target.y + (Math.random() - 0.5) * 2 * sebar
       );
     }
   }
