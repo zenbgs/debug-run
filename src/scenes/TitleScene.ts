@@ -64,6 +64,8 @@ export class TitleScene extends Phaser.Scene {
   private logoMerah!: Phaser.GameObjects.Text;
   private logoBiru!: Phaser.GameObjects.Text;
   private sobekan!: Phaser.GameObjects.Rectangle;
+  /** Teks "zenbgs" yang bisa diklik. Disimpan supaya bisa dikecualikan dari "ketuk untuk mulai". */
+  private tautan?: Phaser.GameObjects.Text;
 
   constructor() {
     super('Title');
@@ -116,6 +118,7 @@ export class TitleScene extends Phaser.Scene {
     this.bangunKelas(cx);
     this.bangunRekor(cx);
     this.bangunAjakan(cx);
+    this.bangunKredit(cx);
     this.pasangMulai();
   }
 
@@ -325,8 +328,58 @@ export class TitleScene extends Phaser.Scene {
     this.tweens.add({ targets: ajakan, alpha: 0.25, duration: 700, yoyo: true, repeat: -1 });
   }
 
+  /**
+   * Baris hak cipta dengan nama yang bisa diklik.
+   *
+   * Dibuat dari DUA objek teks, bukan satu: hanya bagian namanya yang boleh
+   * menjadi tautan, dan satu objek teks tidak bisa punya sebagian area yang
+   * interaktif.
+   */
+  private bangunKredit(cx: number): void {
+    const y = this.scale.height / 2 + 108;
+
+    const awalan = this.teks(0, y, '(c) 2026 ', 6, '#8f88a8').setOrigin(0, 0.5);
+    this.tautan = this.teks(0, y, 'zenbgs', 6, '#8fd35d').setOrigin(0, 0.5);
+
+    // Pasangannya dipusatkan sebagai satu blok, bukan masing-masing.
+    const total = awalan.width + this.tautan.width;
+    awalan.setX(cx - total / 2);
+    this.tautan.setX(cx - total / 2 + awalan.width);
+
+    // Garis bawah tipis — penanda paling dikenal bahwa sesuatu bisa diklik.
+    this.add
+      .rectangle(
+        this.tautan.x,
+        y + 5,
+        this.tautan.width,
+        1,
+        0x8fd35d,
+        0.8
+      )
+      .setOrigin(0, 0.5)
+      .setScrollFactor(0)
+      .setDepth(DEPTH.TEKS);
+
+    this.tautan
+      .setInteractive({ useHandCursor: true })
+      .on('pointerover', () => this.tautan?.setColor('#c8f5a0'))
+      .on('pointerout', () => this.tautan?.setColor('#8fd35d'))
+      .on('pointerdown', () => {
+        // `noopener` wajib: tanpa itu halaman yang dibuka bisa menyentuh
+        // `window.opener` milik game ini.
+        window.open('https://github.com/zenbgs', '_blank', 'noopener,noreferrer');
+      });
+  }
+
   private pasangMulai(): void {
-    const start = () => {
+    const start = (pointer?: Phaser.Input.Pointer) => {
+      // Layar ini dimulai dengan ketukan DI MANA PUN. Tanpa penjagaan ini,
+      // mengklik tautan sekaligus melempar pemain ke layar pilih kelas dan
+      // tautannya praktis mustahil dipakai.
+      if (pointer && this.tautan && this.input.hitTestPointer(pointer).includes(this.tautan)) {
+        return;
+      }
+
       // Dipanggil dari handler input — inilah gestur yang membuka kunci audio.
       audio.unlock();
       audio.play('select');
@@ -334,9 +387,11 @@ export class TitleScene extends Phaser.Scene {
       this.scene.start('CharacterSelect');
     };
 
-    this.input.keyboard?.once('keydown-SPACE', start);
-    this.input.keyboard?.once('keydown-ENTER', start);
-    this.input.once(Phaser.Input.Events.POINTER_DOWN, start);
+    this.input.keyboard?.once('keydown-SPACE', () => start());
+    this.input.keyboard?.once('keydown-ENTER', () => start());
+    // `on`, bukan `once`: ketukan yang mengenai tautan sengaja diabaikan, dan
+    // dengan `once` kesempatan memulainya akan terpakai habis oleh ketukan itu.
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, start);
   }
 
   override update(_time: number, delta: number): void {

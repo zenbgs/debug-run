@@ -213,3 +213,7 @@ Font [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) karya Co
 **SIL Open Font License 1.1** — teks lisensinya disertakan di `public/fonts/OFL.txt`.
 
 Nama "Bug Bash", Octocat, dan aset milik GitHub **tidak** dipakai di project ini.
+
+---
+
+(c) 2026 [zenbgs](https://github.com/zenbgs)
