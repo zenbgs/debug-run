@@ -49,11 +49,36 @@ export type EnemyType = {
    * yang lebih lambat dari itu berarti tipe tersebut tidak pernah terlihat.
    */
   unlockAtSeconds: number;
+
+  /**
+   * Sprite punya animasi PER ARAH: 12 frame, 0-3 hadap bawah, 4-7 samping,
+   * 8-11 hadap atas — konvensi yang sama dengan sprite pemain.
+   *
+   * Tanpa ini semua musuh memakai satu animasi idle dan hanya dicerminkan
+   * mendatar, jadi musuh yang berjalan ke atas tetap terlihat menghadap kamera.
+   */
+  directional?: boolean;
+
+  /**
+   * Perisai depan: porsi damage yang ditahan kalau serangan datang dari arah
+   * musuh menghadap. 0 / tidak diisi = tanpa perisai.
+   *
+   * Ini satu-satunya sifat musuh yang menuntut POSISI, bukan sekadar angka
+   * lebih besar: pemain harus memutar ke sisi atau belakangnya. Karena itu ia
+   * hanya dipasang ke musuh yang sprite-nya `directional` — kalau arah hadapnya
+   * tidak terlihat, perisainya terbaca sebagai damage yang hilang begitu saja.
+   */
+  shieldReduction?: number;
+  /** Setengah lebar busur perisai, radian. */
+  shieldArc?: number;
 };
 
 const BEETLE = SHEETS.ENEMY_BEETLE;
 const CRAWLER = SHEETS.ENEMY_CRAWLER;
 const MOTH = SHEETS.ENEMY_MOTH;
+const ROBOT = SHEETS.ENEMY_ROBOT;
+const LIZARD = SHEETS.ENEMY_LIZARD;
+const WASP = SHEETS.ENEMY_WASP;
 
 export const ENEMY_TYPES: readonly EnemyType[] = [
   {
@@ -198,6 +223,71 @@ export const ENEMY_TYPES: readonly EnemyType[] = [
     idleFrameRate: 5,
     score: 35,
     unlockAtSeconds: 78,
+  },
+  {
+    // Menuntut POSISI, bukan sekadar angka lebih besar: perisainya menahan 80%
+    // damage dari depan, jadi pemain harus memutar ke sisi atau belakangnya.
+    // Dash yang sudah punya i-frame jadi punya guna kedua di sini.
+    //
+    // Sprite-nya `directional` dan itu WAJIB untuk musuh berperisai — arah
+    // hadapnya harus terlihat, kalau tidak perisainya cuma terasa seperti
+    // damage yang hilang entah ke mana.
+    id: 'sentry',
+    name: 'Sentry',
+    texture: ROBOT.key,
+    frames: ROBOT.frames,
+    directional: true,
+    shieldReduction: 0.8,
+    shieldArc: Math.PI / 3, // 60 derajat ke kiri-kanan dari arah hadap
+    // Frame-nya cuma 20x16 px — jauh lebih kecil dari sprite musuh lain (48x48),
+    // jadi skalanya dinaikkan supaya ukurannya di layar setara. Hitbox tetap
+    // dalam satuan frame, jadi ia WAJIB muat di dalam 20x16.
+    scale: 1.8,
+    hp: 40,
+    // Lambat, dan itu bagian dari rancangannya: pemain punya waktu memutar.
+    speed: 34,
+    contactDamage: 12,
+    knockbackResist: 0.75,
+    behavior: 'chase',
+    bodyWidth: 14,
+    bodyHeight: 11,
+    idleFrameRate: 8,
+    score: 30,
+    unlockAtSeconds: 55,
+  },
+  {
+    id: 'lizard',
+    name: 'Kadal Galat',
+    texture: LIZARD.key,
+    frames: LIZARD.frames,
+    scale: 0.72,
+    hp: 34,
+    speed: 74,
+    contactDamage: 10,
+    knockbackResist: 0.2,
+    behavior: 'chase',
+    bodyWidth: 26,
+    bodyHeight: 18,
+    idleFrameRate: 10,
+    score: 18,
+    unlockAtSeconds: 26,
+  },
+  {
+    id: 'wasp',
+    name: 'Tawon Null',
+    texture: WASP.key,
+    frames: WASP.frames,
+    scale: 0.5,
+    hp: 22,
+    speed: 104,
+    contactDamage: 8,
+    knockbackResist: 0,
+    behavior: 'zigzag',
+    bodyWidth: 22,
+    bodyHeight: 16,
+    idleFrameRate: 14,
+    score: 16,
+    unlockAtSeconds: 38,
   },
 ];
 

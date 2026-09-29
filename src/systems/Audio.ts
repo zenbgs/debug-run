@@ -13,6 +13,8 @@
 export type SfxName =
   | 'swing'
   | 'hit'
+  /** Pukulan tertahan perisai musuh — sengaja beda dari 'hit'. */
+  | 'block'
   | 'kill'
   | 'hurt'
   | 'upgrade'
@@ -54,7 +56,9 @@ class AudioSystem {
       return;
     }
 
-    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    const Ctor =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctor) return; // browser tanpa Web Audio — game tetap jalan, hanya senyap
 
     this.ctx = new Ctor();
@@ -104,7 +108,8 @@ class AudioSystem {
 
     osc.type = type;
     osc.frequency.setValueAtTime(startHz, t);
-    if (endHz !== startHz) osc.frequency.exponentialRampToValueAtTime(Math.max(1, endHz), t + durationSec);
+    if (endHz !== startHz)
+      osc.frequency.exponentialRampToValueAtTime(Math.max(1, endHz), t + durationSec);
 
     env.gain.setValueAtTime(0.0001, t);
     env.gain.exponentialRampToValueAtTime(gain, t + 0.008);
@@ -151,6 +156,12 @@ class AudioSystem {
       case 'hit':
         this.tone('square', 420, 120, 0.09, 0.3);
         this.noise(0.05, 0.16, 900);
+        break;
+      // Dering logam pendek dan tinggi, tanpa derau berat: jelas terdengar
+      // sebagai "tertahan", bukan sebagai pukulan lemah.
+      case 'block':
+        this.tone('square', 900, 700, 0.07, 0.22);
+        this.tone('triangle', 1500, 1200, 0.05, 0.12);
         break;
       case 'kill':
         this.tone('sawtooth', 260, 60, 0.22, 0.28);

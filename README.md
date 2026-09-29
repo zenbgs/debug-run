@@ -71,9 +71,12 @@ Terukur mengisi 100% x 100% sebelum maupun sesudah bilah alamat bergerak.
   tampil di layar judul
 - **Layar judul hidup** — arena sungguhan sebagai latar dengan biome acak tiap
   kunjungan, musuh berkeliaran, ketiga kelas berjalan, dan logo ber-glitch
-- **8 tipe musuh** dengan 4 perilaku: mengejar, zigzag, menerjang, dan **menembak
-  dari jarak jauh** — yang terakhir memaksa kamu bergerak dan memakai rintangan
-  arena sebagai perlindungan
+- **11 tipe musuh dengan 6 siluet berbeda** dan 4 perilaku: mengejar, zigzag,
+  menerjang, dan menembak dari jarak jauh. Penembak memaksa kamu bergerak dan
+  memakai rintangan arena sebagai perlindungan
+- **Sentry berperisai** — menahan 80% damage dari depan, jadi kamu harus
+  memutarinya. Satu-satunya musuh dengan sprite per arah, supaya arah hadapnya
+  (dan sisi lemahnya) benar-benar terlihat
 - **Combo 3 pukulan** dengan hitstop, knockback, dan screen shake
 - **3 kelas karakter** dengan cara main berbeda, dipilih sebelum mulai:
   Warrior (tebal, ayunan melee), Archer (panah jarak jauh 190 px, tergesit),
@@ -102,7 +105,7 @@ SFX dan musik disintesis lewat Web Audio API dari oscillator dan noise
 (`src/systems/Audio.ts`). Browser baru mengizinkan bunyi setelah interaksi pengguna,
 jadi audio terbuka saat menekan SPASI di layar judul.
 
-**Total aset ~160 KB.** Delapan spritesheet, satu tileset, sebelas FX (di-pack dari frame
+**Total aset ~180 KB.** Sebelas spritesheet, satu tileset, sebelas FX (di-pack dari frame
 per-PNG oleh `tools/pack_assets.py`), plus font pixel 29 KB yang di-host sendiri — bukan
 dari CDN, jadi game tetap jalan offline.
 
@@ -168,6 +171,7 @@ node tools/verify_elites.mjs   http://localhost:5173/   # elite, cincin, zoom ka
 node tools/verify_fx.mjs       http://localhost:5173/   # FX benturan per kelas, ikon, ledakan
 node tools/verify_weapons.mjs  http://localhost:5173/   # senjata di tangan & ayunannya
 node tools/verify_stuck.mjs    http://localhost:5173/   # musuh tersangkut di rintangan
+node tools/verify_enemies.mjs  http://localhost:5173/   # sprite per arah & perisai depan
 ```
 
 Untuk menyetel letak senjata, pakai `python tools/weapon_mockup.py` lebih dulu — ia

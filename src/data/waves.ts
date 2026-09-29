@@ -54,6 +54,7 @@ export const WAVES: readonly Wave[] = [
     entries: [
       { typeId: 'glitchling-swift', count: 4 },
       { typeId: 'moth', count: 3 },
+      { typeId: 'lizard', count: 2 },
     ],
     spawnIntervalMs: 750,
     maxAlive: 8,
@@ -88,6 +89,10 @@ export const WAVES: readonly Wave[] = [
     entries: [
       { typeId: 'moth', count: 4 },
       { typeId: 'glitchling-swift', count: 4 },
+      // Sentry pertama, sengaja hanya SATU dan ditemani musuh lemah: perisainya
+      // mekanik baru, dan pemain butuh ruang untuk belajar memutarinya sebelum
+      // menghadapi beberapa sekaligus.
+      { typeId: 'sentry', count: 1 },
     ],
     spawnIntervalMs: 650,
     maxAlive: 10,
@@ -98,6 +103,7 @@ export const WAVES: readonly Wave[] = [
     entries: [
       { typeId: 'crawler', count: 4 },
       { typeId: 'moth-swift', count: 3 },
+      { typeId: 'wasp', count: 3 },
       { typeId: 'spitter', count: 2 },
     ],
     spawnIntervalMs: 600,
@@ -109,6 +115,8 @@ export const WAVES: readonly Wave[] = [
     entries: [
       { typeId: 'charger', count: 2 },
       { typeId: 'moth-swift', count: 5 },
+      { typeId: 'sentry', count: 2 },
+      { typeId: 'lizard', count: 3 },
     ],
     spawnIntervalMs: 600,
     maxAlive: 11,
@@ -119,7 +127,8 @@ export const WAVES: readonly Wave[] = [
     entries: [
       { typeId: 'crawler-heavy', count: 3 },
       { typeId: 'charger', count: 2 },
-      { typeId: 'moth', count: 3 },
+      { typeId: 'wasp', count: 4 },
+      { typeId: 'sentry', count: 2 },
       { typeId: 'spitter', count: 3 },
     ],
     spawnIntervalMs: 550,

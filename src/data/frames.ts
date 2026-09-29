@@ -69,6 +69,36 @@ export const SHEETS = {
     frameHeight: 48,
     frames: 4,
   },
+  /**
+   * Musuh berperisai. SATU-SATUNYA musuh yang punya sprite per arah:
+   * frame 0-3 hadap bawah, 4-7 samping, 8-11 hadap atas — konvensi yang sama
+   * dengan sprite pemain.
+   *
+   * Arah hadapnya bukan hiasan: perisainya hanya menahan dari DEPAN, jadi
+   * pemain harus bisa melihat ia sedang menghadap ke mana. Sprite dan
+   * mekaniknya saling menjelaskan.
+   */
+  ENEMY_ROBOT: {
+    key: 'enemy-robot',
+    path: 'assets/sprites/enemy-robot.png',
+    frameWidth: 20,
+    frameHeight: 16,
+    frames: 12,
+  },
+  ENEMY_LIZARD: {
+    key: 'enemy-lizard',
+    path: 'assets/sprites/enemy-lizard.png',
+    frameWidth: 57,
+    frameHeight: 42,
+    frames: 6,
+  },
+  ENEMY_WASP: {
+    key: 'enemy-wasp',
+    path: 'assets/sprites/enemy-wasp.png',
+    frameWidth: 83,
+    frameHeight: 64,
+    frames: 8,
+  },
   BOSS_CORE: {
     key: 'boss-core',
     path: 'assets/sprites/boss-core.png',

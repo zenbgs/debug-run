@@ -86,6 +86,18 @@ JOBS = [
         "sprites",
         os.path.join(SRC, "TinyRPG", "Characters", "Battle Sprites", "Mechanic", "Sentinel.png"),
     ),
+    # Musuh baru. Sebelumnya 8 tipe musuh hanya memakai 3 texture — sisanya
+    # dibedakan tint saja, dan itu terbaca sebagai "bentuknya sama semua".
+    (
+        "enemy-lizard",
+        "sprites",
+        os.path.join(SRC, "Warped", "Characters", "alien-walking-enemy", "Sprites", "walk", "*.png"),
+    ),
+    (
+        "enemy-wasp",
+        "sprites",
+        os.path.join(SRC, "Warped", "Characters", "alien-flying-enemy", "sprites", "*.png"),
+    ),
     (
         "boss-bolt",
         "fx",
@@ -97,6 +109,57 @@ JOBS = [
         os.path.join(SRC, "Warped", "Characters", "top-down-boss", "PNG", "sprites", "rays", "*.png"),
     ),
 ]
+
+
+# Beberapa folder digabung jadi SATU strip, urutannya ditentukan di sini.
+#
+# Dipakai musuh yang punya sprite per arah. Hasilnya satu texture dengan tiga
+# rentang frame — persis konvensi sprite pemain (baris 0 = depan, 1 = samping,
+# 2 = belakang), jadi `Enemy` bisa memilih animasi dari arah geraknya seperti
+# `Player`. Mem-pack-nya jadi tiga texture terpisah juga bisa, tapi lalu tiap
+# musuh berganti texture saat berbelok, dan itu membuang seluruh kerapian
+# animasi yang sudah ada.
+ROBOT = os.path.join(SRC, "TinyRPG", "Characters", "top-down-dungeon-enemy-robot", "Sprites")
+
+JOBS_URUT = [
+    (
+        "enemy-robot",
+        "sprites",
+        [
+            os.path.join(ROBOT, "Walk-front", "*.png"),
+            os.path.join(ROBOT, "Walk-side", "*.png"),
+            os.path.join(ROBOT, "Walk-back", "*.png"),
+        ],
+    ),
+]
+
+
+def pack_urut(name: str, subdir: str, patterns: list[str]) -> tuple[str, int, int, int] | None:
+    """Sama seperti `pack`, tapi menggabungkan beberapa pola dalam urutan diberikan."""
+    files: list[str] = []
+    for pola in patterns:
+        cocok = sorted(glob.glob(pola))
+        if not cocok:
+            print(f"  ! LEWAT {name}: tidak ada file cocok, pola: {pola}")
+            return None
+        files.extend(cocok)
+
+    frames = [Image.open(f).convert("RGBA") for f in files]
+    sizes = {im.size for im in frames}
+    if len(sizes) != 1:
+        print(f"  ! LEWAT {name}: ukuran frame tidak seragam -> {sizes}")
+        return None
+
+    fw, fh = frames[0].size
+    sheet = Image.new("RGBA", (fw * len(frames), fh), (0, 0, 0, 0))
+    for i, im in enumerate(frames):
+        sheet.paste(im, (i * fw, 0))
+
+    target_dir = os.path.join(OUT, subdir)
+    os.makedirs(target_dir, exist_ok=True)
+    sheet.save(os.path.join(target_dir, f"{name}.png"))
+    print(f"  + {subdir}/{name}.png  {len(frames)} frame @ {fw}x{fh}")
+    return (f"{subdir}/{name}", fw, fh, len(frames))
 
 
 # Gambar utuh yang disalin apa adanya, bukan di-pack jadi strip.
@@ -328,6 +391,7 @@ def main() -> int:
 
     print("Packing aset...")
     results = [r for r in (pack(*job) for job in JOBS) if r]
+    results.extend(r for r in (pack_urut(*job) for job in JOBS_URUT) if r)
 
     gems = potong_gems()
     if gems:

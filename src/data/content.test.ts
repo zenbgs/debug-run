@@ -52,6 +52,60 @@ describe('integritas data wave', () => {
   });
 });
 
+describe('musuh berperisai & sprite per arah', () => {
+  it('perisai hanya dipasang ke musuh yang arah hadapnya TERLIHAT', () => {
+    // Kalau pemain tidak bisa melihat musuh menghadap ke mana, perisainya cuma
+    // terbaca sebagai damage yang hilang entah ke mana — dan pemain tidak pernah
+    // belajar harus memutar. Sprite per arah bukan hiasan di sini, ia yang
+    // menjelaskan mekaniknya.
+    for (const t of ENEMY_TYPES) {
+      if ((t.shieldReduction ?? 0) > 0) {
+        expect(t.directional, `${t.id} berperisai tapi tidak directional`).toBe(true);
+      }
+    }
+  });
+
+  it('perisai menahan sebagian, tidak pernah seluruhnya', () => {
+    // Perisai 100% membuat musuh mustahil dilukai dari depan, dan pemain yang
+    // terpojok tidak punya jalan keluar sama sekali.
+    for (const t of ENEMY_TYPES) {
+      const r = t.shieldReduction ?? 0;
+      expect(r, t.id).toBeGreaterThanOrEqual(0);
+      expect(r, t.id).toBeLessThan(1);
+    }
+  });
+
+  it('busur perisai tidak menutup seluruh lingkaran', () => {
+    // Busur >= 180 derajat (PI) berarti tidak ada sisi yang aman, jadi memutar
+    // tidak ada gunanya dan mekaniknya kehilangan seluruh maksudnya.
+    for (const t of ENEMY_TYPES) {
+      if ((t.shieldReduction ?? 0) <= 0) continue;
+      expect(t.shieldArc, t.id).toBeGreaterThan(0);
+      expect(t.shieldArc, t.id).toBeLessThan(Math.PI / 2);
+    }
+  });
+
+  it('sprite per arah punya frame yang habis dibagi tiga', () => {
+    // Layout-nya 3 baris: hadap bawah, samping, atas. Jumlah frame yang tidak
+    // habis dibagi 3 berarti salah satu animasinya akan memotong frame arah lain.
+    for (const t of ENEMY_TYPES) {
+      if (!t.directional) continue;
+      const sheet = ALL_SHEETS.find((sh) => sh.key === t.texture);
+      expect(sheet, t.id).toBeDefined();
+      expect(sheet!.frames % 3, `${t.id}: ${sheet!.frames} frame`).toBe(0);
+    }
+  });
+
+  it('roster wave memakai banyak siluet, bukan tiga texture yang diulang', () => {
+    // Ini keluhan aslinya: 8 tipe musuh hanya memakai 3 texture, sisanya
+    // dibedakan tint — dan hasilnya "bentuknya sama semua di tiap map".
+    const dipakai = new Set<string>();
+    for (const w of WAVES) for (const e of w.entries) dipakai.add(e.typeId);
+    const texture = new Set(ENEMY_TYPES.filter((t) => dipakai.has(t.id)).map((t) => t.texture));
+    expect(texture.size).toBeGreaterThanOrEqual(5);
+  });
+});
+
 describe('integritas tipe musuh', () => {
   it('id musuh unik', () => {
     const ids = ENEMY_TYPES.map((t) => t.id);
@@ -143,9 +197,7 @@ describe('boss harus terasa berbeda satu sama lain', () => {
   // pembedanya tidak diam-diam hilang lagi.
   it('tiap boss memakai sprite sendiri', () => {
     const textures = BOSS_TYPES.map((b) => b.texture);
-    expect(new Set(textures).size, `sprite boss dipakai ulang: ${textures}`).toBe(
-      textures.length
-    );
+    expect(new Set(textures).size, `sprite boss dipakai ulang: ${textures}`).toBe(textures.length);
   });
 
   it('tiap boss punya susunan pola serangan sendiri', () => {
@@ -201,9 +253,7 @@ describe('integritas kelas dan skill', () => {
 
   it('tidak ada skill dipakai bersama antar kelas', () => {
     const semua = PLAYER_CLASSES.flatMap((c) => [...c.skills]);
-    expect(new Set(semua).size, 'ada skill yang dipakai lebih dari satu kelas').toBe(
-      semua.length
-    );
+    expect(new Set(semua).size, 'ada skill yang dipakai lebih dari satu kelas').toBe(semua.length);
   });
 
   it('setiap skill yang didefinisikan benar-benar dipakai suatu kelas', () => {
@@ -247,8 +297,7 @@ describe('integritas kelas dan skill', () => {
         const dorongMirip =
           Math.abs((a.knockback ?? 0) - (b.knockback ?? 0)) <
           Math.max(a.knockback ?? 0, b.knockback ?? 0) * 0.4;
-        const damageMirip =
-          Math.abs(a.damage - b.damage) < Math.max(a.damage, b.damage) * 0.4;
+        const damageMirip = Math.abs(a.damage - b.damage) < Math.max(a.damage, b.damage) * 0.4;
 
         expect(
           radiusMirip && dorongMirip && damageMirip,
@@ -342,9 +391,7 @@ describe('integritas naskah cerita', () => {
     const beats = [STORY_INTRO, STORY_VICTORY, ...Object.values(STORY_BOSS)];
     for (const beat of beats) {
       for (const line of beat.lines) {
-        expect(line.text.includes('\n'), `${beat.id}: "${line.text.slice(0, 40)}..."`).toBe(
-          false
-        );
+        expect(line.text.includes('\n'), `${beat.id}: "${line.text.slice(0, 40)}..."`).toBe(false);
       }
     }
   });

@@ -34,6 +34,9 @@ penulisnya. Dukung karyanya di <https://ansimuz.itch.io/>.
 | `public/assets/sprites/enemy-beetle.png` | `Assets/Warped/Characters/top-down-shooter-enemies/sprites/enemy-01/` | Musuh kumbang (aktif) |
 | `public/assets/sprites/enemy-crawler.png` | `.../top-down-shooter-enemies/sprites/enemy-02/` | Musuh kumbang mesin |
 | `public/assets/sprites/enemy-moth.png` | `.../top-down-shooter-enemies/sprites/enemy-03/` | Musuh ngengat |
+| `public/assets/sprites/enemy-lizard.png` | `Assets/Warped/Characters/alien-walking-enemy/Sprites/walk/` | Musuh Kadal Galat |
+| `public/assets/sprites/enemy-wasp.png` | `Assets/Warped/Characters/alien-flying-enemy/sprites/` | Musuh Tawon Null |
+| `public/assets/sprites/enemy-robot.png` | `Assets/TinyRPG/Characters/top-down-dungeon-enemy-robot/Sprites/{Walk-front,Walk-side,Walk-back}/` | Musuh Sentry (berperisai) |
 | `public/assets/fx/fx-slash-horizontal.png` | `Assets/Explosions and Magic/Grotto-escape-2-FX/sprites/slash-horizontal/` | FX pukulan 1 |
 | `public/assets/fx/fx-slash-upward.png` | `.../Grotto-escape-2-FX/sprites/slash-upward/` | FX pukulan 2 |
 | `public/assets/fx/fx-slash-circular.png` | `.../Grotto-escape-2-FX/sprites/slash-circular/` | FX finisher |
@@ -62,6 +65,11 @@ penulisnya. Dukung karyanya di <https://ansimuz.itch.io/>.
 Berkas di `public/assets/bg/` **disalin apa adanya** oleh `tools/pack_assets.py`
 (bagian `SALIN`), bukan di-pack jadi strip — semuanya gambar utuh tampak-samping
 yang hanya dipakai layar cerita.
+
+`enemy-robot.png` digabung dari **tiga folder sekaligus** oleh `pack_urut()` — depan,
+samping, lalu belakang — jadi satu texture 12 frame dengan tiga rentang animasi,
+persis konvensi sprite pemain. Ia satu-satunya musuh yang punya sprite per arah, dan
+itu yang membuat perisai depannya terbaca.
 
 Berkas di `public/assets/fx/` dan `enemy-*.png` dihasilkan oleh `tools/pack_assets.py`
 (frame per-PNG di-pack jadi strip horizontal seragam). Jalankan ulang script itu kalau

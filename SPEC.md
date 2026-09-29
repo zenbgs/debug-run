@@ -918,6 +918,53 @@ kini memakai `UI_DEPTH.TEXT` secara eksplisit.
 Teks kartu dibatasi 19 karakter oleh tes: di lebar logis tersempit kartunya hanya
 ~126 px, dan teks lebih panjang akan membungkus lalu menembus dasar kartu.
 
+### 6.2c Sentry — musuh berperisai & sprite per arah
+
+Sebelumnya **8 tipe musuh hanya memakai 3 texture**; sisanya dibedakan tint dan angka.
+Yang dirasakan: *"setiap map bentuknya sama semua"*. Sekarang **11 tipe dengan 6
+siluet** — `enemy-lizard` dan `enemy-wasp` dari Warped, `enemy-robot` dari TinyRPG.
+
+**Sentry adalah satu-satunya musuh yang menuntut POSISI**, bukan sekadar angka lebih
+besar: perisainya menahan **80% damage dari busur 60°** di arah hadapnya, jadi pemain
+harus memutar ke sisi atau belakangnya. Dash yang sudah punya i-frame jadi punya guna
+kedua. Ia sengaja **lambat (34 px/d)** supaya memutarinya benar-benar mungkin.
+
+| | Nilai |
+|---|---|
+| `shieldReduction` | 0,8 |
+| `shieldArc` | π/3 (60° ke kiri-kanan dari arah hadap) |
+| Terukur, damage 20 | depan **4**, samping **20**, belakang **20** |
+
+⚠️ **Perisai hanya boleh dipasang ke musuh yang `directional`** — dikunci oleh tes.
+Kalau arah hadapnya tidak terlihat, perisainya cuma terbaca sebagai damage yang hilang
+entah ke mana, dan pemain tidak pernah belajar harus memutar. Sprite dan mekaniknya
+saling menjelaskan; itu sebabnya `enemy-robot` dipilih meski frame-nya paling kecil
+(20×16) dan perlu skala 1,8.
+
+**Arah serangan diturunkan dari vektor knockback**, yang selalu mengarah MENJAUH dari
+penyerang — jadi kebalikannya adalah posisi penyerang. Dengan begitu tidak ada tanda
+tangan fungsi yang perlu diubah di seluruh jalur serangan (melee, proyektil, skill).
+
+Konsekuensinya disengaja: **damage area menembus perisai**, karena ledakan elite,
+percik rantai, dan duri memanggil `takeDamage` dengan knockback nol. Ledakan tidak
+datang dari satu arah, dan memaksa pemain memutar untuk ledakan terasa mengada-ada.
+
+Damage yang tertahan **wajib terbaca sebagai tertahan**: ada kilat biru dan bunyi
+`block` (dering logam pendek, bukan derau `hit`). Tanpa itu pemain hanya merasa
+pukulannya lemah.
+
+#### Sprite per arah
+
+`enemy-robot` di-pack dari tiga folder sekaligus jadi **satu texture 12 frame**:
+0-3 hadap bawah, 4-7 samping, 8-11 hadap atas — konvensi yang sama dengan sprite
+pemain. `Enemy.perbaruiArahHadap()` memilih animasinya dari arah gerak.
+
+⚠️ Texture `directional` **wajib dipisahkan** di `createAnimations()`. Membuat satu
+animasi idle dari 12 frame-nya akan memutar ketiga arah berurutan, dan musuhnya
+terlihat berputar-putar di tempat. Jumlah frame wajib habis dibagi 3 — dikunci tes.
+
+Verifikasi: `node tools/verify_enemies.mjs`.
+
 ### 6.3 Musuh elite
 
 Ada delapan tipe musuh tapi hanya **empat perilaku**, dan empat di antaranya

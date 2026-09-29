@@ -15,6 +15,11 @@ function idleAnimKey(texture: string): string {
   return `${texture}-idle`;
 }
 
+/** Nama animasi per arah, untuk sprite yang `directional`. */
+function dirAnimKey(texture: string, arah: 'down' | 'side' | 'up'): string {
+  return `${texture}-walk-${arah}`;
+}
+
 type ChargerPhase = 'aim' | 'dash' | 'recover';
 
 /**
@@ -73,6 +78,17 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   /** Fase acak per musuh, supaya goyangan zigzag tidak seragam. */
   private readonly wobbleOffset: number;
+
+  /**
+   * Arah hadap, dipakai animasi per arah DAN perisai depan.
+   *
+   * Disimpan sebagai vektor, bukan salah satu dari empat nama: perisai perlu
+   * sudut yang sesungguhnya untuk menghitung apakah serangan datang dari depan.
+   * Hanya diperbarui saat musuh benar-benar bergerak, supaya musuh yang berhenti
+   * tidak mendadak berputar menghadap ke arah acak.
+   */
+  private faceX = 0;
+  private faceY = 1;
   private chargerPhase: ChargerPhase = 'aim';
   private chargerPhaseUntil = 0;
   private chargerDirection = new Phaser.Math.Vector2(0, 0);
@@ -151,7 +167,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.lastY = y;
 
     // Sprite satu frame tidak punya animasi idle; Boss menggoyangnya lewat tween.
-    if (type.frames > 1) this.play(idleAnimKey(type.texture));
+    if (type.directional) this.play(dirAnimKey(type.texture, 'down'));
+    else if (type.frames > 1) this.play(idleAnimKey(type.texture));
   }
 
   /**
@@ -162,7 +179,37 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
    * `play()` gagal karena animasinya tidak pernah dibuat.
    */
   static createAnimations(scene: Phaser.Scene): void {
-    const textures = new Set([...ENEMY_TYPES, ...BOSS_TYPES].map((t) => t.texture));
+    // Texture yang punya sprite per arah didaftarkan terpisah: membuat satu
+    // animasi idle dari 12 frame-nya akan memutar ketiga arah berurutan, dan
+    // musuhnya terlihat berputar-putar di tempat.
+    const arahTexture = new Set(
+      [...ENEMY_TYPES, ...BOSS_TYPES].filter((t) => t.directional).map((t) => t.texture)
+    );
+
+    for (const key of arahTexture) {
+      const sheet = ALL_SHEETS.find((s) => s.key === key);
+      if (!sheet || scene.anims.exists(dirAnimKey(key, 'down'))) continue;
+
+      const perArah = Math.floor(sheet.frames / 3);
+      const buat = (arah: 'down' | 'side' | 'up', baris: number) => {
+        scene.anims.create({
+          key: dirAnimKey(key, arah),
+          frames: scene.anims.generateFrameNumbers(key, {
+            start: baris * perArah,
+            end: (baris + 1) * perArah - 1,
+          }),
+          frameRate: 8,
+          repeat: -1,
+        });
+      };
+      buat('down', 0);
+      buat('side', 1);
+      buat('up', 2);
+    }
+
+    const textures = new Set(
+      [...ENEMY_TYPES, ...BOSS_TYPES].filter((t) => !t.directional).map((t) => t.texture)
+    );
     for (const key of textures) {
       const sheet = ALL_SHEETS.find((s) => s.key === key);
       if (!sheet || sheet.frames < 2) continue;
@@ -253,12 +300,19 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   ): boolean {
     if (!this.isAlive) return false;
 
-    this.hp -= amount;
+    // Perisai depan. Damage yang ditahan WAJIB terbaca sebagai ditahan, bukan
+    // sekadar angka kecil: tanpa kilat perisai dan bunyi berbeda, pemain hanya
+    // merasa pukulannya lemah dan tidak pernah belajar harus memutar.
+    const tertahan = this.ditahanPerisai(knockbackX, knockbackY);
+    const masuk = tertahan ? amount * (1 - (this.config.shieldReduction ?? 0)) : amount;
 
-    playFx(this.scene, fxKey, this.x, this.y, { scale: 0.8 });
+    this.hp -= masuk;
+
+    playFx(this.scene, fxKey, this.x, this.y, { scale: tertahan ? 0.5 : 0.8 });
     spawnHitSparks(this.scene, this.x, this.y);
-    audio.play('hit');
-    this.flash();
+    audio.play(tertahan ? 'block' : 'hit');
+    if (tertahan) this.kilatPerisai();
+    else this.flash();
 
     if (this.hp <= 0) {
       this.die();
@@ -347,8 +401,67 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     this.applyUnstick(body, target, deltaSeconds, now);
 
-    // Sprite hanya punya satu orientasi; flip mengikuti arah gerak horizontal.
-    if (Math.abs(body.velocity.x) > 5) this.setFlipX(body.velocity.x < 0);
+    this.perbaruiArahHadap(body);
+  }
+
+  /**
+   * Perbarui arah hadap, lalu pilih animasi/cermin yang sesuai.
+   *
+   * Untuk sprite biasa ini cuma mencerminkan mendatar seperti sebelumnya. Untuk
+   * sprite `directional` ia benar-benar berganti animasi, jadi musuh yang
+   * berjalan ke atas terlihat membelakangi kamera.
+   */
+  private perbaruiArahHadap(body: Phaser.Physics.Arcade.Body): void {
+    const laju = Math.hypot(body.velocity.x, body.velocity.y);
+    if (laju > 5) {
+      this.faceX = body.velocity.x / laju;
+      this.faceY = body.velocity.y / laju;
+    }
+
+    if (!this.config.directional) {
+      if (Math.abs(body.velocity.x) > 5) this.setFlipX(body.velocity.x < 0);
+      return;
+    }
+
+    const arah =
+      Math.abs(this.faceX) > Math.abs(this.faceY) ? 'side' : this.faceY > 0 ? 'down' : 'up';
+    const kunci = dirAnimKey(this.config.texture, arah);
+    if (this.anims.currentAnim?.key !== kunci) this.play(kunci, true);
+    this.setFlipX(arah === 'side' && this.faceX < 0);
+  }
+
+  /** Kilat biru sesaat: penanda bahwa perisai yang menahan, bukan HP yang tebal. */
+  private kilatPerisai(): void {
+    this.setTint(0x8fd8ff);
+    this.scene.time.delayedCall(90, () => {
+      if (this.active) this.restoreTint();
+    });
+  }
+
+  /**
+   * Apakah serangan ini datang dari DEPAN, yaitu tertahan perisai?
+   *
+   * Arah serangan diturunkan dari vektor knockback, yang selalu mengarah MENJAUH
+   * dari penyerang — jadi kebalikannya adalah arah penyerang berada. Dengan
+   * begitu tidak ada tanda tangan fungsi yang perlu diubah di seluruh jalur
+   * serangan (melee, proyektil, skill).
+   *
+   * Damage area (ledakan elite, percik rantai, duri) memanggil `takeDamage`
+   * dengan knockback nol. Itu SENGAJA menembus perisai: ledakan tidak datang
+   * dari satu arah, dan memaksa pemain memutar untuk ledakan terasa mengada-ada.
+   */
+  private ditahanPerisai(knockbackX: number, knockbackY: number): boolean {
+    const reduksi = this.config.shieldReduction ?? 0;
+    if (reduksi <= 0) return false;
+
+    const l = Math.hypot(knockbackX, knockbackY);
+    if (l < 0.001) return false; // damage area — menembus perisai
+
+    // Arah dari musuh menuju penyerang.
+    const kx = -knockbackX / l;
+    const ky = -knockbackY / l;
+    const cosSudut = kx * this.faceX + ky * this.faceY;
+    return cosSudut > Math.cos(this.config.shieldArc ?? Math.PI / 2);
   }
 
   /**
