@@ -68,6 +68,36 @@ export function addText(
 }
 
 /**
+ * Satu baris "label : nilai" dengan kolom yang benar-benar lurus.
+ *
+ * Label dan nilainya adalah DUA objek teks yang masing-masing rata kiri pada x
+ * tetap — bukan satu string yang dipadatkan dengan spasi lalu dipusatkan.
+ * Blok rata-tengah dengan panjang baris berbeda TIDAK MUNGKIN punya kolom lurus,
+ * dan itulah yang membuat layar kalah terlihat berantakan.
+ */
+export function addRow(
+  scene: Phaser.Scene,
+  panel: PanelHandle,
+  xLabel: number,
+  xNilai: number,
+  y: number,
+  label: string,
+  nilai: string,
+  options: { size?: number; color?: string; colorNilai?: string } = {}
+): void {
+  const size = options.size ?? 7;
+  const buat = (x: number, teks: string, warna: string) =>
+    panel.container.add(
+      scene.add
+        .text(x, y, teks, { fontFamily: FONT, fontSize: `${size}px`, color: warna })
+        .setOrigin(0, 0.5)
+    );
+
+  buat(xLabel, label, options.color ?? '#c9c4d8');
+  buat(xNilai, nilai, options.colorNilai ?? '#e8e4f0');
+}
+
+/**
  * Area tak terlihat yang bisa diketuk, ditumpuk di atas sebaris teks panel.
  *
  * Teks itu sendiri sengaja TIDAK dibuat interaktif: hit area-nya mengikuti
@@ -94,7 +124,13 @@ export function addTapZone(
   return zone;
 }
 
-/** Banner "WAVE N" yang muncul lalu menghilang sendiri. */
+/**
+ * Banner "WAVE N" yang muncul lalu menghilang sendiri.
+ *
+ * Mengembalikan handle-nya supaya pemanggil bisa membuangnya lebih awal: kalau
+ * pemain mati tepat saat banner masih menyala, banner itu tetap terbaca menembus
+ * panel kalah dan membuat teksnya bertumpuk.
+ */
 export function showWaveBanner(
   scene: Phaser.Scene,
   waveNumber: number,
@@ -103,7 +139,7 @@ export function showWaveBanner(
   label: string,
   durationMs: number,
   isBossWave: boolean
-): void {
+): PanelHandle {
   const panel = createPanel(scene, 260, 48, scene.scale.height / 2 - 30);
 
   // `totalWaves: 0` berarti mode tanpa batas — tidak ada penyebut untuk ditulis.
@@ -124,4 +160,5 @@ export function showWaveBanner(
 
   // Kalau scene di-restart di tengah animasi, panel tetap ikut dibersihkan.
   destroyWithScene(scene, panel.container);
+  return panel;
 }

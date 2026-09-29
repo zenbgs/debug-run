@@ -34,7 +34,7 @@ import { ScoreStreak } from '../systems/ScoreStreak';
 import { DialogueBox } from '../systems/DialogueBox';
 import { createFxAnimations, playFx } from '../systems/Fx';
 import { createParticleTexture } from '../systems/Particles';
-import { addTapZone, addText, createPanel, showWaveBanner } from '../systems/Ui';
+import { addRow, addTapZone, addText, createPanel, showWaveBanner } from '../systems/Ui';
 import { TouchControls } from '../systems/TouchControls';
 import { isTouchDevice } from '../systems/VirtualInput';
 import { UpgradePanel } from '../systems/UpgradePanel';
@@ -70,6 +70,8 @@ export class GameScene extends Phaser.Scene {
   private debugGraphics?: Phaser.GameObjects.Graphics;
   private hud!: Hud;
   private cameraFx!: CameraFx;
+  /** Banner wave yang sedang tampil, supaya bisa dibuang saat run berakhir. */
+  private waveBanner?: { destroy: () => void };
   private pausePanel?: { destroy: () => void };
 
   private state: SceneState = 'playing';
@@ -417,7 +419,7 @@ export class GameScene extends Phaser.Scene {
 
     // Dipanggil dari konstruktor WaveManager, jadi `this.waves` belum ter-assign.
     // Pakai WAVES.length langsung, jangan `this.waves`.
-    showWaveBanner(
+    this.waveBanner = showWaveBanner(
       this,
       wave.number,
       this.waves?.totalWaves ?? WAVES.length,
@@ -598,6 +600,11 @@ export class GameScene extends Phaser.Scene {
 
   /** Menghentikan semua gerak. Dipakai saat kalah maupun menang. */
   private freezeEverything(): void {
+    // Banner wave yang masih menyala akan terbaca menembus panel kalah dan
+    // membuat teksnya bertumpuk — terlihat jelas saat mati tepat di awal wave.
+    this.waveBanner?.destroy();
+    this.waveBanner = undefined;
+
     this.cameraFx.reset();
     this.bossAttacks.clear();
     this.hud.hideBoss();
@@ -729,47 +736,65 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showEndPanel(title: string, color: string): void {
-    const panel = createPanel(this, 300, 112);
+    // Tinggi dan jarak antar baris ditulis di satu tempat. Versi sebelumnya
+    // menaruh judul di top+16 dan blok statistik di top+46 yang tingginya 52 px,
+    // jadi baris pertama menimpa judul dan baris terakhir tertimpa baris rekor.
+    const LEBAR = 300;
+    const TINGGI = 138;
+    const panel = createPanel(this, LEBAR, TINGGI);
     const cx = this.scale.width / 2;
-    const top = this.scale.height / 2 - 52;
+    const top = this.scale.height / 2 - TINGGI / 2;
 
-    addText(this, panel, cx, top + 16, title, { size: 10, color });
-    addText(
-      this,
-      panel,
-      cx,
-      top + 46,
-      [
-        `wave tercapai : ${this.waves.waveNumber} / ${this.waves.totalWaves}`,
-        `bug dibasmi   : ${this.kills}`,
-        `rantai terbaik : x${this.streak.best}`,
-        `waktu         : ${(this.elapsedMs / 1000).toFixed(1)} detik`,
-        `SKOR          : ${this.score}`,
-      ].join('\n'),
-      { size: 7, color: '#e8e4f0' }
-    );
+    // Dua kolom tetap: label rata kiri, nilai rata kiri. Inilah yang membuat
+    // titik duanya lurus.
+    const xLabel = cx - 112;
+    const xNilai = cx + 6;
+
+    addText(this, panel, cx, top + 18, title, { size: 10, color });
+
+    const waveTercapai = this.waves.totalWaves
+      ? `${this.waves.waveNumber} / ${this.waves.totalWaves}`
+      : // Mode tanpa batas tidak punya penyebut; "14 / 0" jelas salah.
+        `${this.waves.waveNumber} (tanpa batas)`;
+
+    const baris: ReadonlyArray<readonly [string, string]> = [
+      ['wave tercapai', waveTercapai],
+      ['bug dibasmi', `${this.kills}`],
+      ['rantai terbaik', `x${this.streak.best}`],
+      ['waktu', `${(this.elapsedMs / 1000).toFixed(1)} detik`],
+    ];
+    baris.forEach(([label, nilai], i) => {
+      addRow(this, panel, xLabel, xNilai, top + 40 + i * 11, `${label}`, `: ${nilai}`);
+    });
+
+    addRow(this, panel, xLabel, xNilai, top + 89, 'SKOR', `: ${this.score}`, {
+      size: 8,
+      color: '#ffe066',
+      colorNilai: '#ffe066',
+    });
+
     // Rekor sebelumnya jadi pembanding; tanpa itu skor akhir cuma angka lepas.
     if (this.pecahRekor) {
-      addText(this, panel, cx, top + 70, 'REKOR BARU', { size: 8, color: '#ffe066' });
+      addText(this, panel, cx, top + 105, 'REKOR BARU', { size: 8, color: '#8fd35d' });
     } else if (this.rekorSebelumnya) {
       addText(
         this,
         panel,
         cx,
-        top + 70,
-        `terbaik: ${this.rekorSebelumnya.score} (wave ${this.rekorSebelumnya.wave})`,
+        top + 105,
+        `terbaik ${this.rekorSebelumnya.score} (wave ${this.rekorSebelumnya.wave})`,
         { size: 6, color: '#8fd35d' }
       );
     }
 
-    addText(this, panel, cx, top + 84, this.touch ? 'ketuk untuk ulang' : 'tekan R untuk ulang', {
+    addText(this, panel, cx, top + 122, this.touch ? 'ketuk untuk ulang' : 'tekan R untuk ulang', {
       size: 7,
       color: '#ffe066',
     });
 
     // Seluruh panel bisa diketuk. Di ponsel tidak ada tombol R, dan layar akhir
     // yang tidak bisa dilanjutkan berarti game-nya buntu total di sana.
-    addTapZone(this, panel, cx, this.scale.height / 2, 300, 112, () => {
+    addTapZone(this, panel, cx, this.scale.height / 2, LEBAR, TINGGI, () => {
       if (this.state === 'gameover' || this.state === 'victory') this.scene.restart();
     });
   }
