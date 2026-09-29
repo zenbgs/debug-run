@@ -85,6 +85,35 @@ JOBS = [
 ]
 
 
+# Gambar utuh yang disalin apa adanya, bukan di-pack jadi strip.
+#
+# Latar parallax layar cerita. Semuanya tampak-SAMPING — jenis aset yang ditolak
+# untuk gameplay top-down sejak M2. Layar cerita adalah satu-satunya tempat di
+# mana tampak-samping justru benar, karena karakternya memang berdiri menghadap
+# kamera dan tidak ada arena yang harus dilihat dari atas.
+MIST = os.path.join(SRC, "Gothicvania", "Environments", "mist-forest-background", "layers")
+
+SALIN = [
+    ("bg-mist-back", "bg", os.path.join(MIST, "mist-forest-background-back.png")),
+    ("bg-mist-trees", "bg", os.path.join(MIST, "mist-forest-background-back-trees.png")),
+    ("bg-mist-tree", "bg", os.path.join(MIST, "mist-forest-background-tree.png")),
+    ("bg-mist-rocks", "bg", os.path.join(MIST, "mist-forest-background-rocks.png")),
+]
+
+
+def salin(name: str, subdir: str, sumber: str) -> tuple[str, int, int] | None:
+    if not os.path.exists(sumber):
+        print(f"  ! LEWAT {name}: tidak ada\n    {sumber}")
+        return None
+    im = Image.open(sumber).convert("RGBA")
+    target_dir = os.path.join(OUT, subdir)
+    os.makedirs(target_dir, exist_ok=True)
+    path = os.path.join(target_dir, f"{name}.png")
+    im.save(path)
+    print(f"  + {subdir}/{name}.png  {im.width}x{im.height}")
+    return (f"{subdir}/{name}", im.width, im.height)
+
+
 def pack(name: str, subdir: str, pattern: str) -> tuple[str, int, int, int] | None:
     files = sorted(glob.glob(pattern))
     if not files:
@@ -117,9 +146,16 @@ def main() -> int:
     print("Packing aset...")
     results = [r for r in (pack(*job) for job in JOBS) if r]
 
+    print("\nMenyalin gambar utuh...")
+    disalin = [r for r in (salin(*job) for job in SALIN) if r]
+
     print("\nRingkasan untuk src/data/frames.ts:")
     for key, fw, fh, count in results:
         print(f"  {key:<28} frameWidth: {fw:>3}, frameHeight: {fh:>3}, frames: {count}")
+
+    print("\nRingkasan untuk src/data/backgrounds.ts:")
+    for key, w, h in disalin:
+        print(f"  {key:<28} {w} x {h}")
     return 0
 
 

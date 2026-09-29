@@ -56,6 +56,11 @@ export class DialogueBox {
     return this.container !== undefined;
   }
 
+  /** Baris yang sedang ditampilkan. Dipakai panggung cerita untuk menyorot penutur. */
+  get currentLine(): DialogueLine | undefined {
+    return this.container ? this.lines[this.index] : undefined;
+  }
+
   play(beat: StoryBeat, onDone: () => void): void {
     this.close();
     this.lines = beat.lines;

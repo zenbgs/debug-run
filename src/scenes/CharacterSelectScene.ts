@@ -7,6 +7,7 @@ import { Player } from '../entities/Player';
 import { audio } from '../systems/Audio';
 import { isTouchDevice } from '../systems/VirtualInput';
 import { DialogueBox } from '../systems/DialogueBox';
+import { StoryStage } from '../systems/StoryStage';
 import { createPanel, UI_DEPTH, type PanelHandle } from '../systems/Ui';
 
 /**
@@ -55,6 +56,7 @@ export class CharacterSelectScene extends Phaser.Scene {
   private panelDetail!: PanelHandle;
   private teksDetail!: Phaser.GameObjects.Text;
   private dialogue?: DialogueBox;
+  private panggung?: StoryStage;
   private terkunci = false;
 
   constructor() {
@@ -64,6 +66,7 @@ export class CharacterSelectScene extends Phaser.Scene {
   create(): void {
     this.terpilih = 0;
     this.terkunci = false;
+    this.panggung = undefined;
     this.kartu = [];
     this.judulKelas = [];
     this.pratinjau = [];
@@ -254,7 +257,7 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     const config = PLAYER_CLASSES[this.terpilih];
 
-    // Kosongkan layar pilihan, lalu mainkan cerita pembuka.
+    // Kosongkan layar pilihan, lalu bangun panggung cerita.
     this.panelDetail.destroy();
     this.kartu.forEach((k) => k.destroy());
     this.children.list
@@ -263,14 +266,11 @@ export class CharacterSelectScene extends Phaser.Scene {
       )
       .forEach((c) => c.destroy());
 
-    this.add
-      .text(this.scale.width / 2, 60, config.name.toUpperCase(), {
-        fontFamily: FONT_FAMILY,
-        fontSize: '16px',
-        color: '#8fd35d',
-      })
-      .setOrigin(0.5);
-    this.add.sprite(this.scale.width / 2, 108, config.texture, 0).setScale(2.4);
+    // Hutan berkabut berlapis menggantikan latar hitam pekat. Karakternya
+    // berjalan di tempat, bukan berdiri kaku — lihat catatan di StoryStage.
+    this.panggung = new StoryStage(this);
+    this.panggung.tampilkanKarakter(config.texture, `${config.texture}-walk-down`);
+    this.panggung.tampilkanNama(config.name.toUpperCase());
 
     this.dialogue = new DialogueBox(this, config.texture, 'boss-core');
     this.dialogue.play(STORY_INTRO, () => {
@@ -279,6 +279,12 @@ export class CharacterSelectScene extends Phaser.Scene {
   }
 
   override update(_time: number, delta: number): void {
+    this.panggung?.update(delta);
     this.dialogue?.update(delta);
+
+    // Karakter menyala saat dialah yang bicara, meredup saat narator atau tokoh
+    // lain. Tanpa ini adegannya cuma gambar diam dengan teks yang berganti.
+    const baris = this.dialogue?.currentLine;
+    if (baris) this.panggung?.sorotKarakter(baris.portrait === 'player');
   }
 }

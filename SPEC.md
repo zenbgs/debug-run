@@ -209,6 +209,32 @@ Naskah ada di `src/data/story.ts`, terpisah dari logika. Tiga titik: pembuka (se
 pilih kelas), wave boss 5 dan 10, serta penutup setelah menang. `DialogueBox` memakai
 efek ketik; SPASI menuntaskan baris yang sedang diketik, lalu menekan lagi untuk lanjut.
 
+**Panggung cerita** (`src/systems/StoryStage.ts`). Cerita pembuka dulunya latar
+hitam pekat dengan satu sprite berdiri tegak — tidak ada kedalaman, tidak ada
+gerak. Sekarang hutan berkabut berlapis yang bergeser dengan **parallax**: lapisan
+jauh merayap 3 px/detik, lapisan tengah 7. Itu satu-satunya hal yang menciptakan
+kesan ruang pada gambar diam. Ditambah bintik cahaya melayang, sorotan lembut,
+dan gerak napas 2 px pada karakternya.
+
+Karakter **menyala saat dialah yang bicara dan meredup saat bukan**
+(`sorotKarakter`), jadi adegannya terasa dipentaskan, bukan gambar diam dengan
+teks berganti.
+
+⚠️ Latar parallax ini **tampak-samping** — jenis aset yang ditolak untuk gameplay
+sejak M2. Layar cerita satu-satunya tempat di mana itu justru benar: karakternya
+memang berdiri menghadap kamera dan tidak ada arena yang harus dibaca dari atas.
+
+⚠️ **Karakter memakai origin di KAKI (0.5, 1), bukan di tengah.** Dengan origin
+tengah, posisi kakinya bergantung pada skala — versi pertama menaruh kaki di
+y=195 sementara tepi atas kotak dialog ada di 174, dan setengah badannya tertutup
+panel.
+
+⚠️ **Lapisan latar tidak mencapai dasar layar** karena ditambatkan pada garis
+tanah. Terukur kosong dari y=192 ke bawah; di layar 480 px celah itu tersembunyi
+di balik kotak dialog, di 640 px ia terlihat sebagai pita hitam melintang. Ditutup
+isian berwarna dasar kabut (#457277) — hanya di bawah garis tanah, bukan selayar
+penuh, karena isian penuh menurunkan fps 54 -> 47 di render perangkat lunak.
+
 ⚠️ Teks naskah **tidak boleh dipenggal manual** dengan karakter baris baru —
 `DialogueBox` memakai word-wrap, dan mencampur keduanya menghasilkan baris yatim
 satu kata.

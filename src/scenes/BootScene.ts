@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { ALL_BACKGROUNDS } from '../data/backgrounds';
 import { ALL_SHEETS } from '../data/frames';
 
 export const TILESET_TEXTURE = 'overworld';
@@ -26,6 +27,9 @@ export class BootScene extends Phaser.Scene {
       });
     }
     this.load.image(TILESET_TEXTURE, 'assets/tilesets/overworld.png');
+
+    // Latar parallax layar cerita — gambar utuh, bukan spritesheet.
+    for (const bg of ALL_BACKGROUNDS) this.load.image(bg.key, bg.path);
   }
 
   create(): void {

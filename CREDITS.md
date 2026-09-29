@@ -49,6 +49,11 @@ penulisnya. Dukung karyanya di <https://ansimuz.itch.io/>.
 | `public/assets/sprites/boss-sentinel.png` | `Assets/TinyRPG/Characters/Battle Sprites/Mechanic/Sentinel.png` | Boss wave 5 (Stack Overflow) |
 | `public/assets/fx/boss-bolt.png` | `.../top-down-boss/PNG/sprites/bolt/` | Proyektil boss |
 | `public/assets/fx/boss-rays.png` | `.../top-down-boss/PNG/sprites/rays/` | Beam boss |
+| `public/assets/bg/bg-mist-*.png` | `Assets/Gothicvania/Environments/mist-forest-background/layers/` | Latar parallax layar cerita |
+
+Berkas di `public/assets/bg/` **disalin apa adanya** oleh `tools/pack_assets.py`
+(bagian `SALIN`), bukan di-pack jadi strip — semuanya gambar utuh tampak-samping
+yang hanya dipakai layar cerita.
 
 Berkas di `public/assets/fx/` dan `enemy-*.png` dihasilkan oleh `tools/pack_assets.py`
 (frame per-PNG di-pack jadi strip horizontal seragam). Jalankan ulang script itu kalau
