@@ -591,9 +591,39 @@ tersangkut permanen di balik batu/pohon. Karena wave baru bersih kalau SEMUA mus
 satu musuh nyangkut membuat **permainan deadlock** — ini benar-benar terjadi di M4 dan
 menghentikan wave 1 selamanya.
 
-Penanganannya dua lapis di `Enemy.applyUnstick()`: meluncur menyusuri tembok, lalu jaring
-pengaman yang mendorong paksa musuh melewati rintangan setelah 1,2 detik tanpa gerak.
-**Jangan hapus lapis kedua** — tanpa itu satu musuh nyangkut mengunci seluruh sesi.
+Versi pertama menanganinya dua lapis, dan **masih bocor**. Diukur pada 6 arena ber-seed
+tetap, 14 musuh, pemain diam (`tools/verify_stuck.mjs`):
+
+| | Dua lapis lama | Sekarang |
+|---|---|---|
+| kejadian nyangkut rintangan | **66** | **0** |
+| sangkutan terlama | **11.526 ms** | **0 ms** |
+| musuh nyangkut berulang | 11 | 0 |
+| waktu-musuh tidak bergerak | 17,4% | 1,4% |
+
+Tiga sebabnya, semuanya di `applyUnstick()`:
+
+1. **Ambang macet mutlak.** `moved > 0,4 px per frame` dianggap "bergerak". Musuh yang
+   menggerus menyusuri pohon berpindah sedikit di atas itu, jadi penghitung macetnya
+   di-nol-kan tiap frame dan jaring pengaman **tidak pernah menyala**. Sekarang ambangnya
+   **nisbi**: terhalang kalau perpindahan nyata < 45% dari yang diinginkan kecepatannya
+   sendiri. Ini yang menangkap musuh bergetar menempel di pohon.
+2. **Arah menyusur ditebak dari posisi pemain**, bukan dari sisi mana yang lowong. Musuh
+   yang tersangkut di sisi panjang rintangan sering menyusur ke arah yang justru
+   memperpanjang jalannya. Sekarang kedua sisi **dirabakan ke tilemap** lewat
+   `setObstacleProbe()`, dan yang lowong yang dipilih.
+3. **Tidak ada komitmen arah.** Arah dipilih ulang tiap frame, jadi musuh di sudut
+   rintangan bergetar di tempat — satu frame ke atas, frame berikutnya ke bawah. Sekarang
+   arah dipegang `SLIDE_COMMIT_MS` (420 ms).
+
+Jaring pengaman tetap ada dan **jangan dihapus** — tanpa itu satu musuh nyangkut mengunci
+seluruh sesi. Bedanya sekarang ia memindahkan musuh ke **titik bebas terdekat** hasil
+rabaan, bukan mendorong buta ke arah pemain; terukur 0 sampel musuh berada di dalam tembok,
+jadi ia tidak menukar satu bug dengan bug "musuh menembus pohon".
+
+⚠️ Saat membaca hasil harness: metrik "tidak mendekat" tinggi (~11 detik) di versi lama
+**maupun** baru. Itu bukan rintangan — dengan pemain diam dan 14 musuh mengerumuninya,
+musuh di barisan belakang memang terhalang musuh lain. Yang menentukan `kejadianRintangan`.
 
 
 ### 6.2 Mode tanpa batas

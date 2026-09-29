@@ -232,9 +232,22 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Membuat Enemy biasa atau Boss, lengkap dengan konteks serangannya. */
+  /**
+   * Apakah titik dunia ini rintangan padat?
+   *
+   * Dipakai musuh untuk MERABA ke depan saat mencari jalan memutar. Layernya
+   * dibaca lewat `this.obstacles` yang sama dengan collider, jadi tidak mungkin
+   * lepas sinkron — termasuk setelah arena dicat ulang antar wave.
+   */
+  private isObstacleAt(x: number, y: number): boolean {
+    const tile = this.obstacles.getTileAtWorldXY(x, y);
+    return tile !== null && tile.collides;
+  }
+
   private createEnemy(type: EnemyType, x: number, y: number): Enemy {
     if (!isBossType(type)) {
       const enemy = new Enemy(this, x, y, type);
+      enemy.setObstacleProbe((px, py) => this.isObstacleAt(px, py));
       // Musuh penembak memakai jalur proyektil yang sama dengan boss: tabrakan
       // tembok, kedaluwarsa, dan damage ke pemain sudah ditangani di sana.
       if (type.behavior === 'shooter') {
@@ -947,9 +960,15 @@ export class GameScene extends Phaser.Scene {
    *
    * Layout ikut diacak ulang, bukan cuma warnanya: tiap wave dapat seed baru.
    */
-  private rebuildArenaForWave(waveNumber: number): void {
+  /**
+   * @param seed dibiarkan kosong saat bermain (layout diacak tiap wave). Diisi
+   *   hanya oleh alat pengukur, yang butuh arena yang sama persis untuk
+   *   membandingkan sebelum/sesudah — tanpa itu, angka "musuh tersangkut" ikut
+   *   berubah hanya karena petanya berbeda.
+   */
+  private rebuildArenaForWave(waveNumber: number, seed?: number): void {
     const biome = biomeForWave(waveNumber);
-    const arena = buildArena(TILE, undefined, biome);
+    const arena = buildArena(TILE, seed, biome);
     this.biome = biome;
 
     this.groundLayer.putTilesAt(arena.ground, 0, 0, false);

@@ -167,6 +167,7 @@ node tools/verify_upgrades.mjs http://localhost:5173/   # tiap upgrade benar-ben
 node tools/verify_elites.mjs   http://localhost:5173/   # elite, cincin, zoom kamera
 node tools/verify_fx.mjs       http://localhost:5173/   # FX benturan per kelas, ikon, ledakan
 node tools/verify_weapons.mjs  http://localhost:5173/   # senjata di tangan & ayunannya
+node tools/verify_stuck.mjs    http://localhost:5173/   # musuh tersangkut di rintangan
 ```
 
 Untuk menyetel letak senjata, pakai `python tools/weapon_mockup.py` lebih dulu — ia
