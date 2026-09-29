@@ -73,6 +73,17 @@ type Debu = {
   fase: number;
 };
 
+export type StageOptions = {
+  /**
+   * Depth dasar. Nol untuk scene yang memang kosong (layar pilih kelas), tapi
+   * WAJIB di atas segalanya kalau panggung dipakai sebagai lapisan di atas
+   * permainan yang sedang berjalan.
+   */
+  depthBase?: number;
+  /** Tint semua lapisan latar. `0xffffff` = warna asli. */
+  tint?: number;
+};
+
 export class StoryStage {
   private readonly lapisan: { obj: Phaser.GameObjects.TileSprite; laju: number }[] = [];
   private readonly debu: Debu[] = [];
@@ -80,7 +91,16 @@ export class StoryStage {
   private sorotan?: Phaser.GameObjects.Arc;
   private karakterAktif = true;
 
-  constructor(private readonly scene: Phaser.Scene) {
+  /** Semua objek yang dibuat panggung ini, untuk dibongkar sekaligus. */
+  private readonly dibuat: Phaser.GameObjects.GameObject[] = [];
+  private readonly base: number;
+
+  constructor(
+    private readonly scene: Phaser.Scene,
+    opsi: StageOptions = {}
+  ) {
+    this.base = opsi.depthBase ?? 0;
+    const tint = opsi.tint ?? 0xffffff;
     const lebar = scene.scale.width;
     const tinggi = scene.scale.height;
 
@@ -92,11 +112,13 @@ export class StoryStage {
     // Hanya area di BAWAH garis tanah yang perlu ditutup, bukan seluruh layar:
     // isian selebar layar penuh menambah satu lagi pengisian penuh dan terukur
     // menurunkan fps dari 54 ke 47 di render perangkat lunak.
-    scene.add
+    this.catat(
+      scene.add
       .rectangle(0, bawah - 2, lebar, tinggi - bawah + 2, PANGGUNG.WARNA_DASAR)
       .setOrigin(0, 0)
       .setScrollFactor(0)
-      .setDepth(DEPTH.DASAR);
+      .setDepth(this.base + DEPTH.DASAR)
+    );
 
     const tambah = (
       spec: { key: string; width: number; height: number },
@@ -114,8 +136,10 @@ export class StoryStage {
         .setOrigin(0, 0)
         .setScale(skala)
         .setScrollFactor(0)
-        .setDepth(depth)
-        .setAlpha(alpha);
+        .setDepth(this.base + depth)
+        .setAlpha(alpha)
+        .setTint(tint);
+      this.catat(obj);
       // Sejajarkan dasar gambar dengan garis tanah.
       obj.setY(bawah - spec.height * skala * 0.86);
       this.lapisan.push({ obj, laju });
@@ -130,7 +154,7 @@ export class StoryStage {
     // karakter berdiri — dan satu `TileSprite` selebar layar berkurang, yang
     // terasa nyata di render perangkat lunak (terukur 50 -> 58 fps).
     for (const sisi of [-1, 1]) {
-      scene.add
+      const pohon = scene.add
         .image(
           sisi < 0 ? -18 : lebar + 18,
           bawah + 8,
@@ -140,24 +164,31 @@ export class StoryStage {
         .setScale(skala * 1.1)
         .setFlipX(sisi > 0)
         .setScrollFactor(0)
-        .setDepth(DEPTH.DEPAN)
-        .setAlpha(0.92);
+        .setDepth(this.base + DEPTH.DEPAN)
+        .setAlpha(0.92)
+        .setTint(tint);
+      this.catat(pohon);
     }
 
     // Bebatuan sebagai alas — tidak bergeser, supaya karakter terasa benar-benar
     // berpijak dan tidak melayang di atas latar yang bergerak.
-    scene.add
-      .image(lebar / 2, bawah + 10, BACKGROUNDS.MIST_ROCKS.key)
-      .setOrigin(0.5, 0.74)
-      .setScale(skala * 1.15)
-      .setScrollFactor(0)
-      .setDepth(DEPTH.DEPAN);
+    this.catat(
+      scene.add
+        .image(lebar / 2, bawah + 10, BACKGROUNDS.MIST_ROCKS.key)
+        .setOrigin(0.5, 0.74)
+        .setScale(skala * 1.15)
+        .setScrollFactor(0)
+        .setDepth(this.base + DEPTH.DEPAN)
+        .setTint(tint)
+    );
 
-    scene.add
-      .rectangle(0, 0, lebar, tinggi, 0x0d0b14, PANGGUNG.REDUP)
-      .setOrigin(0, 0)
-      .setScrollFactor(0)
-      .setDepth(DEPTH.REDUP);
+    this.catat(
+      scene.add
+        .rectangle(0, 0, lebar, tinggi, 0x0d0b14, PANGGUNG.REDUP)
+        .setOrigin(0, 0)
+        .setScrollFactor(0)
+        .setDepth(this.base + DEPTH.REDUP)
+    );
 
     this.buatDebu(lebar, tinggi);
   }
@@ -174,7 +205,8 @@ export class StoryStage {
           Phaser.Math.FloatBetween(0.25, 0.7)
         )
         .setScrollFactor(0)
-        .setDepth(DEPTH.DEBU);
+        .setDepth(this.base + DEPTH.DEBU);
+      this.catat(sprite);
 
       this.debu.push({
         sprite,
@@ -190,7 +222,18 @@ export class StoryStage {
    *
    * @param animKey animasi jalan di tempat; kalau kosong, sprite diam.
    */
-  tampilkanKarakter(texture: string, animKey?: string): Phaser.GameObjects.Sprite {
+  tampilkanKarakter(
+    texture: string,
+    animKey?: string,
+    /**
+     * Tinggi tampil yang diinginkan, dalam piksel logis.
+     *
+     * Skalanya DIHITUNG dari tinggi frame, bukan angka tetap: sprite pemain 32 px
+     * dan sprite boss 144 px, jadi satu skala tetap akan membuat salah satunya
+     * sebesar kuku atau memenuhi seluruh layar.
+     */
+    tinggiTarget = 92
+  ): Phaser.GameObjects.Sprite {
     const lebar = this.scene.scale.width;
     const bawah = this.scene.scale.height * PANGGUNG.GARIS_TANAH;
 
@@ -199,7 +242,8 @@ export class StoryStage {
     this.sorotan = this.scene.add
       .circle(lebar / 2, bawah - 34, 46, 0xc8f5a0, 0.1)
       .setScrollFactor(0)
-      .setDepth(DEPTH.KARAKTER - 1);
+      .setDepth(this.base + DEPTH.KARAKTER - 1);
+    this.catat(this.sorotan);
     this.scene.tweens.add({
       targets: this.sorotan,
       scale: 1.12,
@@ -216,9 +260,11 @@ export class StoryStage {
     this.karakter = this.scene.add
       .sprite(lebar / 2, bawah, texture, 0)
       .setOrigin(0.5, 1)
-      .setScale(2.8)
       .setScrollFactor(0)
-      .setDepth(DEPTH.KARAKTER);
+      .setDepth(this.base + DEPTH.KARAKTER);
+    const tinggiFrame = this.karakter.frame.height || 32;
+    this.karakter.setScale(tinggiTarget / tinggiFrame);
+    this.catat(this.karakter);
 
     if (animKey && this.scene.anims.exists(animKey)) this.karakter.play(animKey);
 
@@ -249,8 +295,9 @@ export class StoryStage {
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
-      .setDepth(DEPTH.TEKS)
+      .setDepth(this.base + DEPTH.TEKS)
       .setAlpha(0);
+    this.catat(label);
 
     this.scene.tweens.add({ targets: label, alpha: 1, y: bawah - 112, duration: 600 });
   }
@@ -277,6 +324,30 @@ export class StoryStage {
         duration: 260,
       });
     }
+  }
+
+  private catat<T extends Phaser.GameObjects.GameObject>(obj: T): T {
+    this.dibuat.push(obj);
+    return obj;
+  }
+
+  /**
+   * Bongkar seluruh panggung.
+   *
+   * Wajib dipanggil kalau panggung dipakai sebagai lapisan di atas permainan —
+   * scene-nya tidak berakhir, jadi objeknya tidak akan dibersihkan sendiri dan
+   * akan menutupi arena selamanya.
+   */
+  destroy(): void {
+    for (const obj of this.dibuat) {
+      this.scene.tweens.killTweensOf(obj);
+      obj.destroy();
+    }
+    this.dibuat.length = 0;
+    this.lapisan.length = 0;
+    this.debu.length = 0;
+    this.karakter = undefined;
+    this.sorotan = undefined;
   }
 
   /** Dipanggil tiap frame oleh scene pemilik. */

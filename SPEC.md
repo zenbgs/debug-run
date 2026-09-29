@@ -220,6 +220,29 @@ Karakter **menyala saat dialah yang bicara dan meredup saat bukan**
 (`sorotKarakter`), jadi adegannya terasa dipentaskan, bukan gambar diam dengan
 teks berganti.
 
+**Ketiga babak cerita memakai panggung yang sama** — pembuka (pilih kelas), boss
+wave 5 dan 10, serta penutup. Di wave boss, panggung dibuka sebagai **lapisan di
+atas permainan** dan boss tampil besar di tengahnya, bukan sebagai potret kecil
+di atas arena yang membeku.
+
+⚠️ **Depth panggung harus berada di jendela sempit: 150.** Di atas HUD (100)
+supaya bar HP dan bar boss tertutup, tapi di BAWAH panel UI (200) dan kotak
+dialog (300) supaya teksnya tetap terbaca. Percobaan pertama memakai 400 dan
+panggungnya menutupi kotak dialognya sendiri — seluruh naskah tidak terlihat.
+
+⚠️ **Panggung WAJIB dibongkar lewat `destroy()`** kalau dipakai sebagai lapisan:
+scene-nya tidak berakhir, jadi objeknya tidak dibersihkan sendiri dan akan
+menutupi arena selamanya.
+
+Skala tokoh dihitung dari **tinggi target**, bukan angka tetap: sprite pemain
+32 px dan sprite boss 144 px, jadi satu skala tetap akan membuat salah satunya
+sebesar kuku atau memenuhi layar.
+
+Tint panggung mengikuti biome wave berjalan, **kecuali penutup** yang sengaja
+dipaksa ke warna asli: naskahnya berbunyi "ruang kosong itu menutup, rak-rak
+kembali terlihat", dan memainkannya dalam ungu kekosongan wave 10 membantah
+teksnya sendiri.
+
 ⚠️ Latar parallax ini **tampak-samping** — jenis aset yang ditolak untuk gameplay
 sejak M2. Layar cerita satu-satunya tempat di mana itu justru benar: karakternya
 memang berdiri menghadap kamera dan tidak ada arena yang harus dibaca dari atas.

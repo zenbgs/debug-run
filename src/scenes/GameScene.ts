@@ -31,6 +31,7 @@ import { commitRun, type RecordEntry } from '../systems/Records';
 import { Hud } from '../systems/Hud';
 import { PlayerProjectiles } from '../systems/PlayerProjectiles';
 import { ScoreStreak } from '../systems/ScoreStreak';
+import { StoryStage } from '../systems/StoryStage';
 import { DialogueBox } from '../systems/DialogueBox';
 import { createFxAnimations, playFx } from '../systems/Fx';
 import { createParticleTexture } from '../systems/Particles';
@@ -40,6 +41,15 @@ import { isTouchDevice } from '../systems/VirtualInput';
 import { UpgradePanel } from '../systems/UpgradePanel';
 import { WaveManager } from '../systems/WaveManager';
 import { TILESET_TEXTURE } from './BootScene';
+
+/**
+ * Depth dasar panggung cerita.
+ *
+ * Di atas HUD (100) supaya bar HP dan bar boss tertutup selama cutscene, tapi di
+ * bawah panel UI (`UI_DEPTH.PANEL` = 200) dan kotak dialog (300) supaya teks
+ * ceritanya tetap terbaca di atasnya.
+ */
+const PANGGUNG_DEPTH = 150;
 
 /** Rotasi FX slash mengikuti arah hadap. Sprite aslinya digambar menghadap kanan. */
 const FX_ANGLE: Record<Facing, number> = {
@@ -70,6 +80,8 @@ export class GameScene extends Phaser.Scene {
   private debugGraphics?: Phaser.GameObjects.Graphics;
   private hud!: Hud;
   private cameraFx!: CameraFx;
+  /** Panggung cerita saat cutscene; `undefined` selama bermain. */
+  private panggung?: StoryStage;
   /** Banner wave yang sedang tampil, supaya bisa dibuang saat run berakhir. */
   private waveBanner?: { destroy: () => void };
   private pausePanel?: { destroy: () => void };
@@ -118,6 +130,7 @@ export class GameScene extends Phaser.Scene {
     this.dashHitIds.clear();
     this.activeBoss = undefined;
     this.runTercatat = false;
+    this.panggung = undefined;
     this.rekorSebelumnya = undefined;
     this.pecahRekor = false;
 
@@ -443,11 +456,54 @@ export class GameScene extends Phaser.Scene {
       this.bossStoryShown.add(wave.number);
       this.state = 'dialog';
       this.physics.world.pause();
+
+      // Boss tampil BESAR di panggung yang sama dengan cerita pembuka, bukan
+      // sebagai potret kecil di atas arena yang membeku. Sprite boss jauh lebih
+      // besar dari sprite pemain, jadi tingginya yang ditentukan, bukan skalanya.
+      this.bukaPanggung(bossType?.texture ?? SHEETS.BOSS_CORE.key, undefined, 104);
+      // Nama di atas tokoh, sama seperti nama kelas di cerita pembuka.
+      if (bossType) this.panggung?.tampilkanNama(bossType.bossName);
+
       this.dialogue.play(beat, () => {
+        this.tutupPanggung();
         this.state = 'playing';
         this.physics.world.resume();
       });
     }
+  }
+
+  /**
+   * Buka panggung cerita sebagai LAPISAN di atas permainan.
+   *
+   * Depth-nya harus berada di JENDELA yang sempit: di atas arena dan HUD (100)
+   * supaya keduanya tertutup, tapi di BAWAH panel UI (200) dan kotak dialog
+   * (300) supaya teks ceritanya tetap terbaca. Percobaan pertama memakai 400 dan
+   * panggungnya menutupi kotak dialognya sendiri — seluruh naskah tidak terlihat.
+   *
+   * Tint mengikuti biome wave berjalan, jadi adegannya terasa terjadi di TEMPAT
+   * pemain berada, bukan di hutan lain yang tidak ada hubungannya.
+   */
+  private bukaPanggung(
+    texture: string,
+    animKey?: string,
+    tinggi = 92,
+    /** Timpa tint biome. Dipakai penutup, lihat alasannya di `onVictory`. */
+    tintPaksa?: number
+  ): void {
+    this.tutupPanggung();
+    this.waveBanner?.destroy();
+    this.waveBanner = undefined;
+
+    this.panggung = new StoryStage(this, {
+      depthBase: PANGGUNG_DEPTH,
+      tint: tintPaksa ?? this.biome.tint,
+    });
+    this.panggung.tampilkanKarakter(texture, animKey, tinggi);
+  }
+
+  private tutupPanggung(): void {
+    this.panggung?.destroy();
+    this.panggung = undefined;
   }
 
   private onWaveCleared(wave: Wave): void {
@@ -669,7 +725,16 @@ export class GameScene extends Phaser.Scene {
     this.upgradePanel.close();
     this.freezeEverything();
     audio.play('victory');
-    // Cerita penutup dulu, baru pilihan: sudahi, atau lanjut tanpa batas.
+
+    // Penutup memakai panggung yang sama dengan pembuka, dengan pemain di
+    // tengahnya — babak itu menutup lingkaran yang dibuka di cerita awal.
+    // Tint biome SENGAJA ditimpa warna asli di sini. Naskah penutupnya berbunyi
+    // "ruang kosong itu menutup, rak-rak kembali terlihat" — memainkannya di
+    // ungu kekosongan wave 10 justru membantah teksnya sendiri.
+    const kelas = this.player.playerClass;
+    this.bukaPanggung(kelas.texture, `${kelas.texture}-walk-down`, 92, 0xffffff);
+    this.panggung?.tampilkanNama('ARSIP BERSIH');
+
     this.dialogue.play(STORY_VICTORY, () => {
       this.showVictoryChoice();
     });
@@ -692,6 +757,7 @@ export class GameScene extends Phaser.Scene {
 
     const pilih = (lanjut: boolean) => {
       panel.destroy();
+      this.tutupPanggung();
       if (!lanjut) {
         this.catatRun();
         this.showEndPanel('SEMUA WAVE SELESAI', '#8fd35d');
@@ -994,6 +1060,17 @@ export class GameScene extends Phaser.Scene {
     if (this.touch) {
       this.touch.setVisible(this.state === 'playing' && !this.dialogue.isOpen);
       this.touch.update();
+    }
+
+    if (this.panggung) {
+      this.panggung.update(delta);
+      const baris = this.dialogue.currentLine;
+      if (baris) {
+        // Di cerita boss yang di panggung adalah BOSS, jadi ia menyala saat
+        // boss bicara; di penutup yang di panggung pemain.
+        const target = this.state === 'victory' ? 'player' : 'boss';
+        this.panggung.sorotKarakter(baris.portrait === target);
+      }
     }
 
     if (this.state === 'dialog') {
