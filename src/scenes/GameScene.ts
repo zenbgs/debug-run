@@ -17,6 +17,7 @@ import {
   Player,
   PLAYER_ATTACK_EVENT,
   PLAYER_DASH_EVENT,
+  PLAYER_WINDUP_EVENT,
   PLAYER_DIED_EVENT,
   type Facing,
   type PlayerAttackPayload,
@@ -30,6 +31,7 @@ import { DamageNumbers } from '../systems/DamageNumbers';
 import { commitRun, type RecordEntry } from '../systems/Records';
 import { Hud } from '../systems/Hud';
 import { PlayerProjectiles } from '../systems/PlayerProjectiles';
+import { WeaponVisual } from '../systems/WeaponVisual';
 import { ScoreStreak } from '../systems/ScoreStreak';
 import { StoryStage } from '../systems/StoryStage';
 import { DialogueBox } from '../systems/DialogueBox';
@@ -79,6 +81,7 @@ export class GameScene extends Phaser.Scene {
 
   private debugGraphics?: Phaser.GameObjects.Graphics;
   private hud!: Hud;
+  private weapon!: WeaponVisual;
   private cameraFx!: CameraFx;
   /** Panggung cerita saat cutscene; `undefined` selama bermain. */
   private panggung?: StoryStage;
@@ -159,6 +162,12 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.player, this.obstacles);
     this.player.on(PLAYER_ATTACK_EVENT, this.onPlayerAttack, this);
     this.player.on(PLAYER_DASH_EVENT, () => this.cameraFx.onDash());
+
+    // Senjata di tangan. Dibuat SETELAH pemain karena ia membaca kelasnya, dan
+    // mengayun dari event windup — bukan dari event serangan, yang baru menyala
+    // setelah ancang-ancang habis dan terlambat untuk mengangkat senjata.
+    this.weapon = new WeaponVisual(this, this.player);
+    this.player.on(PLAYER_WINDUP_EVENT, (p: { windupMs: number }) => this.weapon.swing(p.windupMs));
     this.player.once(PLAYER_DIED_EVENT, this.onPlayerDied, this);
 
     this.enemyGroup = this.physics.add.group({ runChildUpdate: false });

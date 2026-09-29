@@ -207,6 +207,49 @@ Jalurnya: `PlayerClass.hitFx` → `AttackModifiers.hitFx` (melee) atau
 `peluru.setData('hitFx')` (proyektil) → parameter keempat `Enemy.takeDamage()`. Proyektil
 harus membawanya sendiri karena `PlayerProjectiles.update()` tidak tahu kelas penembaknya.
 
+### 5.2.2c Senjata yang terlihat di tangan
+
+Ketiga kelas **memegang senjata**, dan senjatanya **ikut mengayun saat menyerang**.
+
+| Kelas | Senjata | Asal | Rentang ayunan |
+|---|---|---|---|
+| Warrior | scimitar | `fantasy weapons set/1.png`, diperkecil ke 16 px | 165° |
+| Archer | busur | **digambar sendiri** di `tools/pack_assets.py` | 30° |
+| Mage | tongkat berpermata | **digambar sendiri** | 68° |
+
+Busur dan tongkat digambar sendiri karena **seluruh koleksi tidak punya satu pun
+busur atau tongkat** — isinya hanya bilah dan tombak. Detailnya di `CREDITS.md`.
+
+**Hamparan, bukan dibakar ke spritesheet.** `src/systems/WeaponVisual.ts` memegang satu
+sprite yang mengikuti pemain. Dibakar berarti senjatanya ikut membeku; di sini ia bisa
+terangkat saat ancang-ancang lalu mengayun tepat saat hitbox menyala. Sistem ini **tidak
+tahu apa-apa soal damage** — hitbox tetap milik `CombatSystem`, jadi ayunan bisa diubah
+tanpa menyentuh keseimbangan.
+
+Ayunannya dipicu `PLAYER_WINDUP_EVENT`, event baru yang menyala saat ancang-ancang
+**mulai**. `PLAYER_ATTACK_EVENT` menyala setelah windup habis — terlalu telat untuk
+mengangkat senjata. Muatannya membawa lama windup, jadi keduanya tidak pernah lepas
+sinkron kalau angka combat diubah.
+
+Tiga hal yang diukur dan harus tetap begitu (dikunci `tools/verify_weapons.mjs`):
+
+| Aturan | Kenapa |
+|---|---|
+| Posisi disetel di **POST_UPDATE**, bukan `scene.update()` | Arcade menyalin posisi badan ke sprite pada POST_UPDATE. Dari `scene.update()` yang terbaca posisi frame sebelumnya — terukur senjata tertinggal 1,7 px saat berjalan, terlihat seperti menyeret. |
+| Titik putar di **genggaman**, beda per jenis (`GRIP`) | Pedang dipegang di pangkal, busur di **tengah**. Memutar busur pada pangkalnya membuatnya menyapu lebar seperti pedang dan ia berhenti terbaca sebagai busur. |
+| `dorong` ayunan **kecil** (≤ 4 px) | Pada 5 px ada celah antara tangan dan gagang di puncak ayunan: pedangnya terbaca seperti terlepas dari tangan. |
+
+⚠️ Semua sprite senjata digambar **menghadap atas**; rotasi di `POSE`/`SWING` diukur dari
+sana. Senjata baru yang digambar menghadap kanan harus diputar di `pack_assets.py`, bukan
+ditambal dengan offset — ayunannya memakai sumbu yang sama.
+
+Sudut diamnya milik **senjata**, bukan arah hadap (`REST`). Versi pertama menaruh rotasi
+di `POSE`, dan ketiganya jadi terlentang 55° sama rata: busur dan tongkat ikut teracung
+seperti pedang, sehingga pemain terlihat menyodorkan senjatanya alih-alih memegangnya.
+
+Saat pemain membelakangi kamera, senjata pindah ke `DEPTH.PLAYER - 1` — di belakang badan.
+Tanpa itu bilahnya menutupi kepala dan pemain terlihat seperti tertusuk.
+
 `attackFx` adalah **kilatan merapal**, bukan pengganti proyektil: untuk kelas jarak jauh
 ia tampil berbarengan dengan proyektilnya. Tiap entri punya `rotates` — bentuk memanjang
 diputar mengikuti arah hadap, ledakan radial tidak.

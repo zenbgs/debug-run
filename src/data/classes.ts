@@ -12,6 +12,7 @@
  * jauh lebih sering dan lebih keras.
  */
 
+import type { WeaponKind } from './weapons';
 import { SHEETS } from './frames';
 import type { SkillId } from './skills';
 
@@ -101,6 +102,16 @@ export type PlayerClass = {
    */
   hitFx: string;
 
+  /**
+   * Senjata yang terlihat di tangan. `kind` menentukan gaya ayunannya —
+   * lihat `src/data/weapons.ts`.
+   *
+   * Koleksi aset tidak punya satu pun busur atau tongkat (isinya hanya bilah
+   * dan tombak), jadi keduanya digambar di `tools/pack_assets.py`. Tanpa itu
+   * dua dari tiga kelas akan bertangan kosong.
+   */
+  weapon: { texture: string; kind: WeaponKind };
+
   /** Tiga baris ringkas untuk kartu pilihan. */
   highlights: readonly string[];
 };
@@ -124,6 +135,7 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
     dashCooldownMultiplier: 1,
     skills: ['cleave', 'warcry'],
     hitFx: SHEETS.FX_HIT_SLASH.key,
+    weapon: { texture: SHEETS.WEAPON_SWORD.key, kind: 'sword' },
     // Warrior memakai FX slash baja bawaan combo.
     highlights: ['HP 130 (tertebal)', 'Damage pukul +20%', 'Gerak agak lambat'],
   },
@@ -154,6 +166,7 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
     },
     skills: ['volley', 'pinshot'],
     hitFx: SHEETS.FX_HIT_PIERCE.key,
+    weapon: { texture: SHEETS.WEAPON_BOW.key, kind: 'bow' },
     highlights: ['Serang jarak jauh', 'Tergesit & lincah', 'HP 85 (rapuh)'],
   },
   {
@@ -200,6 +213,7 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
     dashCooldownMultiplier: 1,
     skills: ['purge', 'shock'],
     hitFx: SHEETS.FX_HIT_ARCANE.key,
+    weapon: { texture: SHEETS.WEAPON_STAFF.key, kind: 'staff' },
     // Mage tidak mengayun senjata sama sekali.
     // Kilatan merapal di badan pemain; bola api yang melesat adalah proyektilnya.
     attackFx: [

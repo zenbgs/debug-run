@@ -16,6 +16,16 @@ export const PLAYER_TEXTURE = SHEETS.PLAYER.key;
 /** Event yang dipancarkan saat hitbox serangan aktif. GameScene yang menindaklanjuti. */
 export const PLAYER_ATTACK_EVENT = 'player-attack';
 
+/**
+ * Dipancarkan saat ancang-ancang MULAI, bukan saat hitbox aktif.
+ *
+ * `PLAYER_ATTACK_EVENT` menyala setelah windup habis — terlalu telat untuk
+ * tampilan yang perlu bersiap lebih dulu, seperti senjata yang terangkat sebelum
+ * menebas. Muatannya berisi lama windup supaya pendengarnya bisa menyamakan
+ * durasi tanpa menyalin angka combat.
+ */
+export const PLAYER_WINDUP_EVENT = 'player-windup';
+
 /** Dipancarkan sekali saat HP pemain habis. */
 export const PLAYER_DIED_EVENT = 'player-died';
 
@@ -374,6 +384,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     );
     this.recoveryUntil = now + recoveryMs * this.stats.recoveryMultiplier;
     audio.play('swing');
+    this.emit(PLAYER_WINDUP_EVENT, { windupMs });
 
     this.scene.time.delayedCall(windupMs, () => {
       if (!this.active) return;
@@ -418,6 +429,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.recoveryUntil = now + step.recoveryMs * this.stats.recoveryMultiplier;
     this.lungeUntil = now + COMBAT.LUNGE_MS;
     audio.play('swing');
+    this.emit(PLAYER_WINDUP_EVENT, { windupMs: step.windupMs });
 
     // Hitbox baru aktif setelah windup, supaya ada jeda ancang-ancang yang terbaca.
     this.scene.time.delayedCall(step.windupMs, () => {

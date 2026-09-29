@@ -203,6 +203,31 @@ export const SHEETS = {
     frameHeight: 48,
     frames: 7,
   },
+  /**
+   * Senjata yang dipegang pemain. Semuanya digambar MENGHADAP ATAS dan diputar
+   * saat jalan oleh `WeaponVisual` — satu orientasi sumber, tanpa frame kembar.
+   */
+  WEAPON_SWORD: {
+    key: 'weapon-sword',
+    path: 'assets/weapons/weapon-sword.png',
+    frameWidth: 5,
+    frameHeight: 16,
+    frames: 1,
+  },
+  WEAPON_BOW: {
+    key: 'weapon-bow',
+    path: 'assets/weapons/weapon-bow.png',
+    frameWidth: 9,
+    frameHeight: 15,
+    frames: 1,
+  },
+  WEAPON_STAFF: {
+    key: 'weapon-staff',
+    path: 'assets/weapons/weapon-staff.png',
+    frameWidth: 5,
+    frameHeight: 15,
+    frames: 1,
+  },
   /** Ikon permata untuk panel upgrade. Enam warna = enam kategori. */
   UI_GEMS: {
     key: 'ui-gems',

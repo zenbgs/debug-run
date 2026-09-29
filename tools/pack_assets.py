@@ -144,6 +144,144 @@ def potong_gems() -> tuple[str, int, int, int] | None:
     return ("ui/ui-gems", GEM_SIZE, GEM_SIZE, len(GEM_X))
 
 
+# --------------------------------------------------------------- senjata pemain
+#
+# Senjata yang dipegang karakter. Sumbernya TIDAK seragam, dan itu disengaja:
+#
+#  * Pedang Warrior diambil dari `fantasy weapons set` lalu DIPERKECIL ke tinggi
+#    setinggi tangan. Hanya bilah lurus sederhana yang selamat dari pengecilan —
+#    kapak dan halberd di set yang sama berubah jadi bercak tak terbaca pada 15 px,
+#    jadi keduanya tidak dipakai meski tersedia.
+#  * Busur dan tongkat DIGAMBAR DI SINI, karena seluruh koleksi tidak punya satu
+#    pun busur atau tongkat — isinya hanya bilah dan tombak. Tanpa keduanya, dua
+#    dari tiga kelas akan bertangan kosong.
+#
+# Paletnya diambil dari sprite pemain TinyRPG dan gagang pedang Gothicvania,
+# bukan dikarang: aset gambar sendiri yang warnanya meleset akan langsung terbaca
+# sebagai tempelan dari game lain.
+SENJATA_SRC = os.path.join(SRC, "Gothicvania", "Misc", "fantasy weapons set", "PNG")
+
+PALET = {
+    "W": (0x47, 0x2E, 0x0E, 255),  # kayu gelap  — gagang pedang Gothicvania
+    "w": (0x78, 0x51, 0x1E, 255),  # kayu sedang
+    "l": (0xC7, 0x7C, 0x1B, 255),  # kayu terang
+    "s": (0xA6, 0xC2, 0xFF, 255),  # tali busur  — biru-putih sprite pemain
+    "G": (0x6D, 0xD9, 0xF2, 255),  # permata terang
+    "g": (0x2A, 0x8C, 0xC4, 255),  # permata gelap
+    "F": (0xFA, 0xFD, 0xFF, 255),  # kilau       — putih sprite pemain
+    ".": (0, 0, 0, 0),
+}
+
+# Digambar MENGHADAP ATAS (ujung di baris 0). `WeaponVisual` memutarnya per arah
+# hadap, jadi satu orientasi sumber sudah cukup dan tidak ada frame kembar.
+BUSUR = [
+    "..w......",
+    "..sw.....",
+    "..s.W....",
+    "..s..W...",
+    "..s...W..",
+    "..s...l..",
+    "..s....W.",
+    "..s....l.",
+    "..s....W.",
+    "..s...l..",
+    "..s...W..",
+    "..s..W...",
+    "..s.W....",
+    "..sw.....",
+    "..w......",
+]
+
+TONGKAT = [
+    "..G..",
+    ".GFG.",
+    "GFGGG",
+    ".GgG.",
+    "..g..",
+    "..l..",
+    "..w..",
+    "..w..",
+    "..l..",
+    "..w..",
+    "..w..",
+    "..l..",
+    "..w..",
+    "..w..",
+    "..W..",
+]
+
+
+def gambar_piksel(rows: list[str]) -> Image.Image:
+    """Ubah gambar ASCII jadi PNG. Satu huruf = satu piksel, lihat `PALET`."""
+    h = len(rows)
+    w = max(len(r) for r in rows)
+    im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    for y, baris in enumerate(rows):
+        for x, ch in enumerate(baris):
+            im.putpixel((x, y), PALET[ch])
+    return im
+
+
+def buat_senjata() -> list[tuple[str, int, int, int]]:
+    hasil: list[tuple[str, int, int, int]] = []
+    target_dir = os.path.join(OUT, "weapons")
+    os.makedirs(target_dir, exist_ok=True)
+
+    def simpan(nama: str, im: Image.Image) -> None:
+        im.save(os.path.join(target_dir, f"{nama}.png"))
+        print(f"  + weapons/{nama}.png  {im.width}x{im.height}")
+        hasil.append((f"weapons/{nama}", im.width, im.height, 1))
+
+    # Pedang: dipotong ke isinya dulu, baru diperkecil — bingkai kosong di sumber
+    # akan membuat hasil pengecilannya meleset dari tinggi yang diminta.
+    # 1.png (scimitar), BUKAN 2.png (pedang lurus). Keduanya dibandingkan pada
+    # ukuran jadinya, dan itu yang menentukan: bilah lurus tipis menyusut jadi
+    # garis selebar 1-2 px yang terbaca sebagai tongkat, sementara bilah melengkung
+    # scimitar tetap punya badan dan gagang emasnya tetap terlihat. Varian 4, 5, 9,
+    # dan 10 gugur karena alasan yang sama.
+    sumber_pedang = os.path.join(SENJATA_SRC, "1.png")
+    if os.path.exists(sumber_pedang):
+        pedang = Image.open(sumber_pedang).convert("RGBA")
+        pedang = pedang.crop(pedang.getbbox())
+
+        # URUTAN PENTING: putar dulu pada resolusi penuh, BARU perkecil.
+        #
+        # Sumbernya digambar serong ke kanan-atas; diputar berlawanan jarum jam
+        # 45 derajat supaya ujungnya menghadap ATAS, seperti busur dan tongkat,
+        # agar satu tabel rotasi berlaku untuk ketiganya. (Arah sebaliknya, -45,
+        # menghasilkan bilah mendatar — terlihat dari ukurannya saja: 21x7.)
+        #
+        # Memperkecil lebih dulu lalu memutar menghasilkan bilah putus-putus
+        # seperti rantai: pada 15 px tidak tersisa cukup piksel untuk dirotasi
+        # 45 derajat tanpa berlubang. BICUBIC lalu ambang alfa dipakai supaya
+        # bilah tipisnya tidak hilang sebagian seperti pada NEAREST.
+        pedang = pedang.rotate(45, expand=True, resample=Image.BICUBIC)
+        pedang = pedang.crop(pedang.getbbox())
+
+        # 16 px. Karakternya sendiri hanya setinggi 25 px; pada 21 px bilahnya
+        # menjulang di atas kepala dan terbaca sebagai tiang, bukan pedang.
+        skala = 16 / max(pedang.size)
+        pedang = pedang.resize(
+            (max(1, round(pedang.width * skala)), max(1, round(pedang.height * skala))),
+            Image.BICUBIC,
+        )
+        # Kembalikan ke piksel tegas: seni piksel tidak boleh punya tepi separuh
+        # tembus, dan BICUBIC selalu meninggalkannya.
+        piksel = pedang.load()
+        for y in range(pedang.height):
+            for x in range(pedang.width):
+                r, g, b, a = piksel[x, y]
+                piksel[x, y] = (r, g, b, 255 if a >= 110 else 0)
+        pedang = pedang.crop(pedang.getbbox())
+        simpan("weapon-sword", pedang)
+    else:
+        print(f"  ! LEWAT weapon-sword: tidak ada\n    {sumber_pedang}")
+
+    simpan("weapon-bow", gambar_piksel(BUSUR))
+    simpan("weapon-staff", gambar_piksel(TONGKAT))
+    return hasil
+
+
 def salin(name: str, subdir: str, sumber: str) -> tuple[str, int, int] | None:
     if not os.path.exists(sumber):
         print(f"  ! LEWAT {name}: tidak ada\n    {sumber}")
@@ -192,6 +330,9 @@ def main() -> int:
     gems = potong_gems()
     if gems:
         results.append(gems)
+
+    print("\nMembuat senjata pemain...")
+    results.extend(buat_senjata())
 
     print("\nMenyalin gambar utuh...")
     disalin = [r for r in (salin(*job) for job in SALIN) if r]

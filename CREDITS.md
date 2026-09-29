@@ -50,6 +50,7 @@ penulisnya. Dukung karyanya di <https://ansimuz.itch.io/>.
 | `public/assets/fx/fx-explosion-big.png` | `Assets/Explosions and Magic/Explosions pack/explosion-1-f/Sprites/` | Ledakan elite Peledak |
 | `public/assets/fx/fx-explosion-small.png` | `.../Explosions pack/explosion-1-g/Sprites/` | Upgrade "Ledakan Akhir" |
 | `public/assets/ui/ui-gems.png` | `Assets/Misc/gems/spritesheets/gems-spritesheet.png` | Ikon kategori panel upgrade |
+| `public/assets/weapons/weapon-sword.png` | `Assets/Gothicvania/Misc/fantasy weapons set/PNG/1.png` | Pedang di tangan Warrior |
 | `public/assets/sprites/player-arrow.png` | `Assets/Gothicvania/Misc/Dagger/` | Panah Archer |
 | `public/assets/sprites/player-fireball.png` | `.../Grotto-escape-2-FX/sprites/fire-ball/` | Bola api Mage |
 | `public/assets/sprites/boss-core.png` | `Assets/Warped/Characters/top-down-boss/PNG/sprites/boss/` | Boss wave 10 (Null Pointer) |
@@ -73,6 +74,33 @@ berputar, supaya tidak menarik mata dari teks upgrade di sebelahnya.
 
 Varian ledakan `explosion-1-c/d/e` sengaja **tidak** dipakai: asapnya membubung ke
 atas, yang terbaca sebagai tampak-samping dan salah untuk arena tampak-atas.
+
+---
+
+## Aset gambar sendiri — busur & tongkat
+
+| Berkas | Asal |
+|---|---|
+| `public/assets/weapons/weapon-bow.png` | **digambar sendiri** — `tools/pack_assets.py`, konstanta `BUSUR` |
+| `public/assets/weapons/weapon-staff.png` | **digambar sendiri** — `tools/pack_assets.py`, konstanta `TONGKAT` |
+
+Keduanya bukan aset pihak ketiga dan tidak butuh atribusi. Alasannya dicatat di
+sini supaya jelas asalnya saat ditelusuri belakangan: **seluruh Legacy Collection
+tidak punya satu pun busur atau tongkat** — `fantasy weapons set` isinya hanya
+sepuluh bilah dan tombak. Tanpa keduanya, Archer dan Mage akan bertangan kosong
+sementara Warrior memegang pedang.
+
+Gambarnya ditulis sebagai seni ASCII di `tools/pack_assets.py` (satu huruf = satu
+piksel, lihat `PALET`), jadi bisa disunting langsung di situ dan dihasilkan ulang
+bersama aset lain. Paletnya diambil dari sprite pemain TinyRPG dan gagang pedang
+Gothicvania, bukan dikarang — warna yang meleset akan langsung terbaca sebagai
+tempelan dari game lain.
+
+Pedang Warrior memakai `1.png` (scimitar), bukan `2.png` (pedang lurus). Keduanya
+dibandingkan pada ukuran jadinya: bilah lurus tipis menyusut jadi garis selebar
+1–2 px yang terbaca sebagai tongkat, sementara bilah melengkung tetap punya badan
+dan gagang emasnya tetap terlihat. Varian 4, 5, 9, dan 10 gugur karena hal yang
+sama, dan kapak serta halberd karena berubah jadi bercak tak terbaca pada 16 px.
 
 ---
 

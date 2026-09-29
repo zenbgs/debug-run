@@ -166,6 +166,7 @@ node tools/verify_endless.mjs  http://localhost:5173/   # kurva tanpa batas & re
 node tools/verify_upgrades.mjs http://localhost:5173/   # tiap upgrade benar-benar terpasang
 node tools/verify_elites.mjs   http://localhost:5173/   # elite, cincin, zoom kamera
 node tools/verify_fx.mjs       http://localhost:5173/   # FX benturan per kelas, ikon, ledakan
+node tools/verify_weapons.mjs  http://localhost:5173/   # senjata di tangan & ayunannya
 ```
 
 Semuanya mengukur, bukan mengintip: `verify_biomes` membandingkan warna piksel
