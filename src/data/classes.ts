@@ -147,6 +147,21 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
     highlights: ['Serang jarak jauh', 'Tergesit & lincah', 'HP 85 (rapuh)'],
   },
   {
+    // ⚠️ Disetel dua kali setelah DIUKUR, bukan ditebak.
+    //
+    // Bot-play 5x per kelas menunjukkan Mage timpang jauh: skor 206 lawan 710
+    // milik Warrior, bertahan 31 detik lawan 86 detik.
+    //
+    // Percobaan pertama menaikkan jangkauan 95 -> 125 dan HP 75 -> 82. Nyaris
+    // tidak berpengaruh: 206 -> 213, dan waktu bertahan tidak bergerak sama
+    // sekali (31,1 -> 31,2 detik). Pengukuran ulang menunjukkan alasannya —
+    // waktu bertahan berbanding LURUS dengan HP: 82/130 = 0,63 dan 31,2/49,4 =
+    // 0,63. Jangkauan tidak melindungi apa pun, karena arah hadap mengikuti arah
+    // gerak sehingga kiting mustahil; musuh selalu berhasil menempel.
+    //
+    // Karena itu yang dinaikkan sekarang adalah ketebalan dan kecepatan
+    // membunuh, bukan jarak. Mage kini lebih tebal dari Archer: Archer-lah yang
+    // rapuh-tapi-jauh, Mage penyihir jarak menengah yang harus tahan dipukul.
     id: 'mage',
     name: 'Mage',
     title: 'Pembaca Mantra',
@@ -155,22 +170,22 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
       'Purge dan Shock menyala dua kali lebih sering dan lebih keras.',
     texture: SHEETS.PLAYER_BLONDKID.key,
     attackStyle: 'ranged',
-    maxHp: 75,
+    maxHp: 95,
     speedMultiplier: 1.05,
-    damageMultiplier: 0.8,
+    damageMultiplier: 0.9,
     projectile: {
       texture: SHEETS.PLAYER_FIREBALL.key,
       // Sengaja jauh lebih pendek dan lebih lambat dari panah Archer: Mage tetap
       // harus mendekat, bukan menembak dari seberang arena.
-      speed: 210,
-      range: 95,
+      speed: 265,
+      range: 125,
       bodyWidth: 14,
       bodyHeight: 10,
       scale: 0.85,
       animated: true,
     },
     skillDamageMultiplier: 1.9,
-    recoveryMultiplier: 1.1,
+    recoveryMultiplier: 1,
     skillCooldownMultiplier: 0.5,
     dashCooldownMultiplier: 1,
     skills: ['purge', 'shock'],
@@ -181,7 +196,7 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
       { key: SHEETS.FX_ARCANE_CRESCENT.key, scale: 1.1, offset: 12, rotates: true },
       { key: SHEETS.FX_ARCANE_BLAST.key, scale: 0.9, offset: 6, rotates: true },
     ],
-    highlights: ['Bola api pendek', 'Skill 2x sering', 'HP 75 (terapuh)'],
+    highlights: ['Bola api pendek', 'Skill 2x sering', 'HP 95, jarak dekat'],
   },
 ];
 

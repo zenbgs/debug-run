@@ -113,6 +113,42 @@ Cleave Warrior 30, kebalikan dari yang dirancang. Setelah dipisah: 47,5 vs 30.
 
 `stats.damageMultiplier` menampung **bonus upgrade saja**, bukan nilai kelas.
 
+### 5.2.1b Keseimbangan kelas — DIUKUR
+
+`node tools/balance_run.mjs [url] [runPerKelas] [batasDetik]`. Bot memainkan game
+sungguhan lewat `Player.setVirtualInput()` — jalur input yang sama persis dengan
+stik analog di ponsel. Ia tidak boleh memanggil fungsi internal untuk bergerak
+atau menyerang; kalau boleh, yang terukur adalah kelihaian bot, bukan kekuatan
+kelas. Kebijakannya satu untuk semua kelas; hanya jaraknya diturunkan dari data
+kelas itu sendiri.
+
+Hasil 5-6 run per kelas, semua berakhir karena MATI (mode tanpa batas menyala):
+
+| Kelas | wave (sebelum → sesudah) | skor | detik bertahan |
+|---|---|---|---|
+| Warrior | 4,0 → 4,3 | 710 → 751 | 85,8 → 57,4 |
+| Archer | 3,4 → 3,2 | 483 → 408 | 68,5 → 43,5 |
+| Mage | **2,4 → 3,0** | **206 → 368** | **31,1 → 40,6** |
+
+Sebaran wave turun 1,67x → **1,43x**; jurang skor Mage vs Warrior 3,45x → **2,04x**.
+
+**Temuan paling penting: waktu bertahan berbanding LURUS dengan HP.** Terukur
+82/130 = 0,63 dan 31,2/49,4 = 0,63. Penyebabnya arah hadap mengikuti arah gerak,
+jadi kiting mustahil — musuh selalu berhasil menempel, dan jangkauan tidak
+melindungi apa pun. Percobaan menaikkan jangkauan Mage 95 → 125 nyaris tidak
+berpengaruh (206 → 213); yang akhirnya berhasil adalah menaikkan HP dan kecepatan
+membunuh.
+
+⚠️ **Run yang macet WAJIB dibuang, bukan dirata-ratakan.** Bot tidak punya
+pathfinding dan kadang tersangkut di balik batu. Tiga dari 15 run sempat berakhir
+di wave 1-2 setelah 200 detik dan membuat dua sesi pengukuran tak berarti — ia
+menyeret waktu bertahan naik sambil menahan wave dan skor di bawah. Harness kini
+mendeteksi skor yang tidak bergerak 40 detik dan MENGULANG run itu.
+
+**Yang masih terbuka:** Warrior tetap unggul ~1,4x pada wave dan ~2x pada skor.
+Pola HP-berbanding-lurus menunjuk satu tuas tunggal kalau mau ditutup — `maxHp`
+Warrior (130) yang jauh di atas Archer 85 dan Mage 95.
+
 ### 5.2.2 Skill per kelas
 
 Setiap kelas punya sepasang skill sendiri; tidak ada yang dipakai bersama. Slot 1 di
