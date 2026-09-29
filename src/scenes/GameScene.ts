@@ -33,6 +33,8 @@ import { commitRun, type RecordEntry } from '../systems/Records';
 import { Hud } from '../systems/Hud';
 import { PlayerProjectiles } from '../systems/PlayerProjectiles';
 import { Pickups } from '../systems/Pickups';
+import { Destructibles } from '../systems/Destructibles';
+import { DESTRUCTIBLE } from '../data/destructibles';
 import { spawnHitSparks } from '../systems/Particles';
 import type { PickupKind, PickupSpec } from '../data/pickups';
 import { OverclockRunner } from '../systems/Overclock';
@@ -90,6 +92,7 @@ export class GameScene extends Phaser.Scene {
   private hud!: Hud;
   private weapon!: WeaponVisual;
   private pickups!: Pickups;
+  private destructibles!: Destructibles;
   private overclock = new OverclockMeter();
   private ultimate!: OverclockRunner;
   private cameraFx!: CameraFx;
@@ -198,7 +201,22 @@ export class GameScene extends Phaser.Scene {
       onKill: (enemy) => this.registerKill(enemy),
     });
     this.physics.add.collider(this.projectiles.group, this.obstacles, (peluru) => {
-      (peluru as Phaser.GameObjects.GameObject).destroy();
+      const p = peluru as Phaser.Physics.Arcade.Sprite;
+      this.destructibles.damageAt(
+        p.x,
+        p.y,
+        10,
+        ((p.getData('damage') as number) ?? 0) * DESTRUCTIBLE.ATTACK_RATIO
+      );
+      p.destroy();
+    });
+
+    // Rintangan interior yang bisa dipecahkan. Dibuat setelah `obstacles` ada,
+    // karena ia mengubah tile di layer itu langsung.
+    this.destructibles = new Destructibles(this, this.obstacles, {
+      onBreak: (bx, by, peluang) => {
+        if (Math.random() < peluang) this.pickups.rollDrop(bx, by, false);
+      },
     });
 
     // Permata jatuhan dan Overclock. Keduanya satu lingkaran: bunuh -> permata
@@ -388,6 +406,9 @@ export class GameScene extends Phaser.Scene {
     // Ledakan sendiri, bukan sprite kematian musuh yang dipakai ulang — kalau
     // sama, upgrade ini tidak pernah terlihat sebagai sesuatu yang terjadi.
     playFx(this, SHEETS.FX_EXPLOSION_SMALL.key, x, y, { scale: 1.3 });
+    // Ledakan ikut membuka jalan. Inilah gunanya paling terasa: jalan buntu yang
+    // membuat musuh mondar-mandir bisa diledakkan.
+    this.destructibles.damageAt(x, y, UPGRADE_FX.DEATH_BLAST_RADIUS, damage);
     for (const enemy of this.aliveEnemies) {
       if (enemy === korban) continue;
       const jarak = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
@@ -497,6 +518,7 @@ export class GameScene extends Phaser.Scene {
 
     playFx(this, SHEETS.FX_EXPLOSION_BIG.key, enemy.x, enemy.y, { scale: 1.9 });
     this.cameras.main.shake(160, 0.007);
+    this.destructibles.damageAt(enemy.x, enemy.y, ELITE.BLAST_RADIUS, damage);
 
     for (const lain of this.aliveEnemies) {
       if (lain === enemy || !lain.isAlive) continue;
@@ -717,6 +739,17 @@ export class GameScene extends Phaser.Scene {
     if (this.player.stats.lifesteal > 0 && result.damageDealt > 0) {
       this.player.heal(result.damageDealt * this.player.stats.lifesteal);
     }
+
+    // Serangan melee juga merusak rintangan di depan pemain. Titiknya diambil
+    // sedikit di depan badan, bukan di badan: kalau di badan, pemain merusak
+    // rintangan yang berdiri di BELAKANGNYA.
+    const jangkauan = 14 * this.player.stats.rangeMultiplier;
+    this.destructibles.damageAt(
+      x + dirX * jangkauan,
+      y + dirY * jangkauan,
+      jangkauan,
+      step.damage * DESTRUCTIBLE.ATTACK_RATIO
+    );
   }
 
   /** Sudut dasar tembakan menurut arah hadap. */
@@ -1069,6 +1102,10 @@ export class GameScene extends Phaser.Scene {
     // Proyektil yang masih melayang berasal dari peta lama.
     this.projectiles.clear();
     this.bossAttacks.clear();
+    this.pickups.clear();
+    // WAJIB: tanpa ini tile di koordinat yang sama pada wave berikutnya mewarisi
+    // kerusakan wave sebelumnya, dan pohon yang baru muncul sudah nyaris pecah.
+    this.destructibles.reset();
   }
 
   /**

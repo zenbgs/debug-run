@@ -84,6 +84,9 @@ Terukur mengisi 100% x 100% sebelum maupun sesudah bilah alamat bergerak.
 - **Permata jatuhan** — musuh menjatuhkan permata hijau (pulih), biru (isi
   Overclock), dan kuning (skor). Umurnya pendek, jadi mengambilnya adalah
   keputusan: berani masuk kerumunan, atau mundur aman?
+- **Rintangan bisa dihancurkan** — batu, pohon, dan semak di dalam arena pecah
+  kena serangan atau ledakan, membuka jalan pintas. Tembok tepi arena tidak bisa
+  dijebol
 - **Combo 3 pukulan** dengan hitstop, knockback, dan screen shake
 - **3 kelas karakter** dengan cara main berbeda, dipilih sebelum mulai:
   Warrior (tebal, ayunan melee), Archer (panah jarak jauh 190 px, tergesit),
@@ -180,6 +183,7 @@ node tools/verify_weapons.mjs  http://localhost:5173/   # senjata di tangan & ay
 node tools/verify_stuck.mjs    http://localhost:5173/   # musuh tersangkut di rintangan
 node tools/verify_enemies.mjs  http://localhost:5173/   # sprite per arah & perisai depan
 node tools/verify_overclock.mjs http://localhost:5173/  # permata jatuhan & jurus pamungkas
+node tools/verify_destructibles.mjs http://localhost:5173/ # rintangan pecah & tepi arena utuh
 ```
 
 Untuk menyetel letak senjata, pakai `python tools/weapon_mockup.py` lebih dulu — ia

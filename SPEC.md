@@ -1020,6 +1020,49 @@ Overclock memakai **tekan sekali**, bukan tahan — di keyboard lewat `JustDown`
 sentuh lewat perbandingan keadaan frame sebelumnya. Dengan `held`, jempol yang menempel
 menghabiskan meter seketika setelah terisi lagi.
 
+### 6.2e Rintangan yang bisa dihancurkan
+
+Arena dulu sepenuhnya statis — batu dan pohon murni tembok. Sekarang rintangan
+**interior** bisa pecah, jadi arena ikut jadi bagian permainan: membuka jalan pintas,
+dan meledakkan jalan buntu yang membuat musuh mondar-mandir.
+
+⚠️ **Hanya `PROP.*` yang bisa hancur, TIDAK PERNAH `WALL.*`.** `ArenaBuilder` memakai
+`WALL.*` untuk tepi arena dan `PROP.*` untuk rintangan interior — batas yang sudah ada
+dan kebetulan tepat. Kalau tile tepi ikut bisa dihancurkan, pemain dan musuh bisa
+keluar dari arena. Dikunci **dua** tes: terhadap konstanta `WALL`, dan terhadap
+`wallVariants` tiap biome (biome baru bisa memakai index lain sebagai tepi).
+
+| Rintangan | HP |
+|---|---|
+| Ilalang / semak | 16 / 20 |
+| Batu / kerikil | 45 |
+| Pohon | 60 |
+| Bongkahan | 90 |
+
+HP sengaja rendah: menghancurkan rintangan adalah **manuver taktis di tengah
+pertarungan**, bukan pekerjaan menambang. Kalau butuh sepuluh pukulan, tidak akan ada
+yang melakukannya saat sedang dikejar, dan fiturnya tidak pernah terpakai. Serangan
+hanya meneruskan **60%** damage-nya ke rintangan; kalau 1:1, pukulan biasa merobohkan
+pohon sekali ayun dan seluruh arena rata sebelum wave 3.
+
+Empat sumber merusak: pukulan melee (dari titik **di depan** pemain — kalau dari
+badannya, pemain merusak rintangan di belakangnya), proyektil yang menabrak, Ledakan
+Akhir, dan ledakan elite. Yang terakhir dua itu gunanya paling terasa.
+
+⚠️ **HP disimpan per koordinat tile di `Destructibles`, bukan di tilemap**, dan WAJIB
+dikosongkan tiap arena dibangun ulang. `Tile` Phaser tidak punya tempat menyimpan
+keadaan sendiri; tanpa `reset()`, tile di koordinat yang sama pada wave berikutnya
+mewarisi kerusakan wave sebelumnya dan pohon yang baru muncul sudah nyaris pecah.
+
+Rintangan yang dipukul tapi belum pecah **bergoyang dan menggelap** mengikuti
+kerusakannya. Tanpa reaksi apa pun ia terbaca sebagai kebal, dan pemain berhenti
+mencoba.
+
+Verifikasi: `node tools/verify_destructibles.mjs`. Yang paling penting di sana bukan
+"tile-nya hilang", melainkan **`collides` ikut hilang** dan pemain benar-benar bisa
+lewat — tile yang hilang secara visual tapi tetap menabrak adalah *tembok tak terlihat*,
+kegagalan paling mahal yang pernah terjadi di project ini (§10 jebakan tileset).
+
 ### 6.3 Musuh elite
 
 Ada delapan tipe musuh tapi hanya **empat perilaku**, dan empat di antaranya
