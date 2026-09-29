@@ -174,22 +174,24 @@ PALET = {
 
 # Digambar MENGHADAP ATAS (ujung di baris 0). `WeaponVisual` memutarnya per arah
 # hadap, jadi satu orientasi sumber sudah cukup dan tidak ada frame kembar.
+# Busur sengaja PENDEK (11 px, bukan 15).
+#
+# Busur digenggam di tengah, jadi tingginya terbagi rata ke atas dan bawah tangan.
+# Pada 15 px ia membentang dari dada sampai lutut dan menutupi seluruh badan
+# Archer — terukur di mockup: yang terbaca bukan "memegang busur" melainkan busur
+# yang ditempelkan di atas karakternya. Pada 11 px ia muat di samping badan.
 BUSUR = [
-    "..w......",
-    "..sw.....",
-    "..s.W....",
-    "..s..W...",
-    "..s...W..",
-    "..s...l..",
-    "..s....W.",
-    "..s....l.",
-    "..s....W.",
-    "..s...l..",
-    "..s...W..",
-    "..s..W...",
-    "..s.W....",
-    "..sw.....",
-    "..w......",
+    "..w....",
+    "..sW...",
+    "..s.W..",
+    "..s..W.",
+    "..s..l.",
+    "..s..W.",
+    "..s..l.",
+    "..s..W.",
+    "..s.W..",
+    "..sW...",
+    "..w....",
 ]
 
 TONGKAT = [

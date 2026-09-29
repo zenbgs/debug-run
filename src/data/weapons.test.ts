@@ -1,9 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { PLAYER_CLASSES } from './classes';
 import { ALL_SHEETS } from './frames';
-import { GRIP, POSE, REST, SWING, WEAPON_TIMING, type WeaponKind } from './weapons';
+import {
+  BEHIND,
+  behindFor,
+  GRIP,
+  HAND,
+  poseFor,
+  SWING,
+  WEAPON_TIMING,
+  type WeaponKind,
+} from './weapons';
 
 const JENIS = Object.keys(SWING) as WeaponKind[];
+const ARAH = ['down', 'up', 'left', 'right'] as const;
 
 describe('senjata yang dipegang pemain', () => {
   it('tiap kelas memegang senjata yang texture-nya benar-benar terdaftar', () => {
@@ -21,10 +31,10 @@ describe('senjata yang dipegang pemain', () => {
     expect(new Set(dipakai).size).toBe(dipakai.length);
   });
 
-  it('tiap jenis senjata punya sudut diam, genggaman, dan ayunan', () => {
+  it('tiap jenis senjata punya genggaman, urutan gambar, dan ayunan', () => {
     for (const jenis of JENIS) {
-      expect(REST[jenis], jenis).toBeTypeOf('number');
       expect(GRIP[jenis], jenis).toBeTypeOf('number');
+      expect(BEHIND[jenis], jenis).toBeTypeOf('boolean');
       expect(SWING[jenis], jenis).toBeDefined();
     }
   });
@@ -79,28 +89,74 @@ describe('senjata yang dipegang pemain', () => {
   it('sudut diam hampir tegak, bukan teracung', () => {
     // Senjata yang terlentang jauh saat diam terbaca sebagai pose menyerang yang
     // macet. Versi pertama memakai 55 derajat dan persis itu yang terjadi.
+    for (const kelas of PLAYER_CLASSES) {
+      for (const arah of ARAH) {
+        const pose = poseFor(kelas.id, arah);
+        expect(Math.abs(pose.rotation), `${kelas.id}/${arah}`).toBeLessThan(Math.PI / 2);
+      }
+    }
+  });
+
+  it('tiap kelas punya titik genggam sendiri', () => {
+    // Ketiga sprite menaruh tangan di tempat berbeda. Satu tabel untuk semuanya
+    // adalah penyebab asli senjata terlihat mengambang.
+    for (const kelas of PLAYER_CLASSES) {
+      expect(HAND[kelas.id], kelas.id).toBeDefined();
+    }
+  });
+
+  it('hadap samping menaruh senjata dekat sumbu badan, bukan jauh di luarnya', () => {
+    // Ini inti perbaikannya. Tangan yang terlihat pada frame samping ada di
+    // sekitar sumbu badan (terukur: -2, -1, +2 untuk ketiga sprite). Versi
+    // pertama memakai +6 untuk semuanya, dan selisih 6-8 px itulah celah yang
+    // terbaca sebagai senjata melayang di udara.
+    for (const kelas of PLAYER_CLASSES) {
+      const x = HAND[kelas.id].side.x;
+      expect(Math.abs(x), `${kelas.id} samping x=${x}`).toBeLessThanOrEqual(5);
+    }
+  });
+
+  it('hadap atas memiringkan senjata MENJAUHI badan', () => {
+    // Dengan sudut yang tandanya sama seperti hadap bawah, bilahnya condong ke
+    // arah badan dan senjatanya hilang sepenuhnya di balik punggung.
+    for (const kelas of PLAYER_CLASSES) {
+      const atas = HAND[kelas.id].up;
+      const bawah = HAND[kelas.id].down;
+      expect(atas.x, kelas.id).toBeLessThan(0);
+      if (bawah.rotation !== 0) {
+        expect(Math.sign(atas.rotation), `${kelas.id} sudut atas`).toBe(-Math.sign(bawah.rotation));
+      }
+    }
+  });
+
+  it('hadap kiri adalah cerminan hadap kanan', () => {
+    for (const kelas of PLAYER_CLASSES) {
+      const kiri = poseFor(kelas.id, 'left');
+      const kanan = poseFor(kelas.id, 'right');
+      expect(kiri.x, kelas.id).toBe(-kanan.x);
+      expect(kiri.y, kelas.id).toBe(kanan.y);
+      expect(kiri.rotation, kelas.id).toBe(-kanan.rotation);
+      expect(kiri.flip, kelas.id).toBe(!kanan.flip);
+    }
+  });
+
+  it('senjata selalu di belakang badan saat membelakangi kamera', () => {
     for (const jenis of JENIS) {
-      expect(Math.abs(REST[jenis]), jenis).toBeLessThan(Math.PI / 4);
+      expect(behindFor(jenis, 'up'), jenis).toBe(true);
     }
   });
 
-  it('pose hadap atas menaruh senjata di belakang badan, arah lain di depan', () => {
-    expect(POSE.up.behind).toBe(true);
-    expect(POSE.down.behind).toBe(false);
-    expect(POSE.left.behind).toBe(false);
-    expect(POSE.right.behind).toBe(false);
+  it('busur digambar di belakang badan, pedang di depan', () => {
+    // Busur membentang melintasi badan karena digenggam di tengah; di depan ia
+    // terlihat seperti ditempelkan di atas karakter. Pedang digenggam di pangkal
+    // sehingga gagangnya jatuh di tangan — justru harus di depan agar terlihat
+    // bersentuhan.
+    expect(BEHIND.bow).toBe(true);
+    expect(BEHIND.sword).toBe(false);
   });
 
-  it('kiri dan kanan saling bercermin', () => {
-    expect(POSE.left.x).toBe(-POSE.right.x);
-    expect(POSE.left.y).toBe(POSE.right.y);
-    expect(POSE.left.flip).toBe(!POSE.right.flip);
-  });
-
-  it('semua pose menaruh senjata di samping badan, bukan menimpanya', () => {
-    for (const [arah, pose] of Object.entries(POSE)) {
-      expect(Math.abs(pose.x), arah).toBeGreaterThanOrEqual(5);
-    }
+  it('kelas tak dikenal tidak melempar', () => {
+    expect(() => poseFor('tidak-ada', 'down')).not.toThrow();
   });
 
   it('durasi ayunan positif', () => {

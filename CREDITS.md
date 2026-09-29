@@ -92,7 +92,8 @@ sementara Warrior memegang pedang.
 
 Gambarnya ditulis sebagai seni ASCII di `tools/pack_assets.py` (satu huruf = satu
 piksel, lihat `PALET`), jadi bisa disunting langsung di situ dan dihasilkan ulang
-bersama aset lain. Paletnya diambil dari sprite pemain TinyRPG dan gagang pedang
+bersama aset lain. Busurnya sengaja pendek (7x11): pada 15 px ia membentang dari
+dada sampai lutut dan menutupi seluruh badan Archer. Paletnya diambil dari sprite pemain TinyRPG dan gagang pedang
 Gothicvania, bukan dikarang — warna yang meleset akan langsung terbaca sebagai
 tempelan dari game lain.
 

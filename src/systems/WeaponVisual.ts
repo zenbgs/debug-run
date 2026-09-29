@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { DEPTH } from '../data/depth';
-import { GRIP, POSE, REST, SWING, WEAPON_TIMING, type WeaponKind } from '../data/weapons';
+import { behindFor, GRIP, poseFor, SWING, WEAPON_TIMING, type WeaponKind } from '../data/weapons';
 import type { Facing, Player } from '../entities/Player';
 
 /**
@@ -23,6 +23,8 @@ import type { Facing, Player } from '../entities/Player';
 export class WeaponVisual {
   private readonly sprite: Phaser.GameObjects.Sprite;
   private readonly kind: WeaponKind;
+  /** Titik genggam diukur per KELAS — sprite ketiganya menaruh tangan berbeda. */
+  private readonly classId: string;
 
   /** Sudut tambahan dari ayunan, di atas rotasi pose diam. */
   private ayunan = 0;
@@ -36,6 +38,7 @@ export class WeaponVisual {
   ) {
     const senjata = player.playerClass.weapon;
     this.kind = senjata.kind;
+    this.classId = player.playerClass.id;
     this.sprite = scene.add
       .sprite(player.x, player.y, senjata.texture)
       // Titik putar di GENGGAMAN, bukan di tengah sprite: senjata berputar pada
@@ -128,13 +131,15 @@ export class WeaponVisual {
     }
 
     const facing: Facing = this.player.getFacing();
-    const pose = POSE[facing];
+    const pose = poseFor(this.classId, facing);
 
-    // Ayunan ditandatangani mengikuti arah hadap: pose yang mencerminkan sprite
-    // juga harus mencerminkan arah ayunannya, kalau tidak senjata mengayun ke
-    // dalam badan alih-alih keluar.
-    const arah = pose.flip ? -1 : 1;
-    const rotasi = (REST[this.kind] + this.ayunan) * arah;
+    // Ayunan ditandatangani mengikuti tanda sudut diamnya, bukan `flip`.
+    //
+    // Memakai `flip` salah untuk hadap ATAS, yang sudut diamnya sudah negatif
+    // tanpa mencerminkan sprite: ayunannya akan berlawanan arah dengan pose
+    // diamnya sendiri, dan senjata menebas masuk ke dalam badan.
+    const arah = pose.rotation < 0 || pose.x < 0 ? -1 : 1;
+    const rotasi = pose.rotation + this.ayunan * arah;
 
     // Dorongan keluar diarahkan sepanjang sumbu senjata yang sedang berputar,
     // bukan sepanjang arah hadap — dengan begitu ia tetap menempel di tangan.
@@ -147,7 +152,7 @@ export class WeaponVisual {
     this.sprite.setFlipX(pose.flip);
     this.sprite.setVisible(this.player.visible);
     this.sprite.setAlpha(this.player.alpha);
-    this.sprite.setDepth(pose.behind ? DEPTH.PLAYER - 1 : DEPTH.PLAYER + 1);
+    this.sprite.setDepth(behindFor(this.kind, facing) ? DEPTH.PLAYER - 1 : DEPTH.PLAYER + 1);
   }
 
   destroy(): void {

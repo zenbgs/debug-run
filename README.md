@@ -169,6 +169,11 @@ node tools/verify_fx.mjs       http://localhost:5173/   # FX benturan per kelas,
 node tools/verify_weapons.mjs  http://localhost:5173/   # senjata di tangan & ayunannya
 ```
 
+Untuk menyetel letak senjata, pakai `python tools/weapon_mockup.py` lebih dulu — ia
+menempelkan senjata ke frame pemain tanpa menjalankan game (satu lembar berisi belasan
+kandidat, bukan puluhan detik per putaran), dan sekaligus **mengukur letak tangan** dari
+piksel warna kulit di spritesheet.
+
 Semuanya mengukur, bukan mengintip: `verify_biomes` membandingkan warna piksel
 hasil render dengan hasil perkalian tint yang diharapkan, `verify_touch` mengirim
 sentuhan lewat CDP `Input.dispatchTouchEvent`, dan `verify_fx` memicu serangan

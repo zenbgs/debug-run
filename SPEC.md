@@ -214,7 +214,7 @@ Ketiga kelas **memegang senjata**, dan senjatanya **ikut mengayun saat menyerang
 | Kelas | Senjata | Asal | Rentang ayunan |
 |---|---|---|---|
 | Warrior | scimitar | `fantasy weapons set/1.png`, diperkecil ke 16 px | 165° |
-| Archer | busur | **digambar sendiri** di `tools/pack_assets.py` | 30° |
+| Archer | busur (7x11) | **digambar sendiri** di `tools/pack_assets.py` | 30° |
 | Mage | tongkat berpermata | **digambar sendiri** | 68° |
 
 Busur dan tongkat digambar sendiri karena **seluruh koleksi tidak punya satu pun
@@ -231,21 +231,60 @@ Ayunannya dipicu `PLAYER_WINDUP_EVENT`, event baru yang menyala saat ancang-anca
 mengangkat senjata. Muatannya membawa lama windup, jadi keduanya tidak pernah lepas
 sinkron kalau angka combat diubah.
 
-Tiga hal yang diukur dan harus tetap begitu (dikunci `tools/verify_weapons.mjs`):
+Hal yang diukur dan harus tetap begitu (dikunci `tools/verify_weapons.mjs`):
 
 | Aturan | Kenapa |
 |---|---|
 | Posisi disetel di **POST_UPDATE**, bukan `scene.update()` | Arcade menyalin posisi badan ke sprite pada POST_UPDATE. Dari `scene.update()` yang terbaca posisi frame sebelumnya — terukur senjata tertinggal 1,7 px saat berjalan, terlihat seperti menyeret. |
+| Titik genggam **diukur dari piksel**, per kelas (`HAND`) | Lihat §5.2.2d. Angka hasil hitungan kotak pembatas meleset 6-8 px di arah samping, dan itulah "senjata mengambang". |
 | Titik putar di **genggaman**, beda per jenis (`GRIP`) | Pedang dipegang di pangkal, busur di **tengah**. Memutar busur pada pangkalnya membuatnya menyapu lebar seperti pedang dan ia berhenti terbaca sebagai busur. |
 | `dorong` ayunan **kecil** (≤ 4 px) | Pada 5 px ada celah antara tangan dan gagang di puncak ayunan: pedangnya terbaca seperti terlepas dari tangan. |
+| Hadap atas: sudut bertanda **berlawanan** dari hadap bawah | Dengan tanda yang sama, bilahnya condong ke arah badan dan senjatanya hilang sepenuhnya di balik punggung. |
+
+### 5.2.2d "Senjata mengambang" — sebabnya dan obatnya
+
+Versi pertama menaruh senjata memakai satu tabel pose untuk ketiga kelas, dengan angka
+yang diturunkan dari kotak pembatas sprite (`x = ±6..7`, `y = 6`). Hasilnya dilaporkan
+sebagai senjata yang mengambang di udara, tidak seperti dipegang.
+
+Sebabnya baru ketahuan setelah **piksel warna kulit di tiap frame benar-benar dicari**
+(`tools/weapon_mockup.py`, fungsi `tangan()`):
+
+| sprite | hadap bawah | hadap samping |
+|---|---|---|
+| guy (Warrior) | (+6, +9) | (**−2**, +9) |
+| pirategirl (Archer) | (+4, +6) | (**−1**, +6) |
+| blondkid (Mage) | (+5, +9) | (**+2**, +9) |
+
+Arah samping-lah yang paling meleset: tangan yang terlihat ada di **dekat sumbu badan**,
+bukan 6 px di luarnya. Selisih 6–8 px itu persis lebar celah yang terbaca sebagai melayang.
+
+Tiga perbaikan, masing-masing menjawab hal berbeda:
+
+1. **Titik genggam per kelas dan per arah** (`HAND` di `weapons.ts`), diukur, bukan
+   dihitung. Arah kiri diturunkan dengan mencerminkan `side` supaya tidak ada entri
+   kembar yang bisa lepas sinkron.
+2. **Busur digambar DI BELAKANG badan** (`BEHIND`). Busur digenggam di tengah sehingga
+   selalu membentang melintasi badan; di depan ia terlihat seperti ditempelkan di atas
+   karakter. Di belakang, badan menutupi sisi dalamnya — **tumpang tindih itulah yang
+   memberi kesan menyatu**. Pedang dan tongkat digenggam di pangkal sehingga gagangnya
+   jatuh tepat di tangan, jadi keduanya justru lebih baik di depan.
+3. **Busur diperkecil** 15 → 11 px. Pada 15 px ia membentang dari dada sampai lutut dan
+   menutupi seluruh badan Archer.
+
+⚠️ Keterlihatan diukur dengan **memotret layar dua kali**, sekali dengan senjata dan
+sekali setelah disembunyikan; kalau identik, tidak ada satu piksel pun yang sampai ke
+layar. Perbandingan geometri tidak cukup — kotak fisika pemain hanya sebatas badan,
+sehingga pedang yang tertutup KEPALA tetap terhitung "di luar kotak" dan lolos. Scene
+wajib dijeda dulu, karena `sync()` menyetel ulang `visible` tiap POST_UPDATE.
 
 ⚠️ Semua sprite senjata digambar **menghadap atas**; rotasi di `POSE`/`SWING` diukur dari
 sana. Senjata baru yang digambar menghadap kanan harus diputar di `pack_assets.py`, bukan
 ditambal dengan offset — ayunannya memakai sumbu yang sama.
 
-Sudut diamnya milik **senjata**, bukan arah hadap (`REST`). Versi pertama menaruh rotasi
-di `POSE`, dan ketiganya jadi terlentang 55° sama rata: busur dan tongkat ikut teracung
-seperti pedang, sehingga pemain terlihat menyodorkan senjatanya alih-alih memegangnya.
+Sudut diamnya ikut `HAND`, per kelas dan per arah. Versi paling awal memakai satu sudut
+untuk semua arah, dan ketiganya jadi terlentang 55° sama rata: busur dan tongkat ikut
+teracung seperti pedang, sehingga pemain terlihat menyodorkan senjatanya.
 
 Saat pemain membelakangi kamera, senjata pindah ke `DEPTH.PLAYER - 1` — di belakang badan.
 Tanpa itu bilahnya menutupi kepala dan pemain terlihat seperti tertusuk.

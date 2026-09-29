@@ -89,6 +89,39 @@ const bacaSenjata = () =>
     };
   });
 
+/**
+ * Apakah senjata BENAR-BENAR terlihat, bukan tertutup badan sepenuhnya?
+ *
+ * Diukur dengan memotret layar dua kali — sekali dengan senjata, sekali setelah
+ * disembunyikan. Kalau kedua potret identik, tidak ada satu piksel pun senjata
+ * yang sampai ke layar. Perbandingan geometri tidak bisa dipakai di sini: kotak
+ * fisika pemain hanya sebatas badan, sehingga pedang yang tertutup KEPALA tetap
+ * terhitung "di luar kotak" dan lolos.
+ *
+ * ⚠️ Scene WAJIB dijeda dulu. `WeaponVisual.sync()` berjalan tiap POST_UPDATE dan
+ * menyetel ulang `visible` dari pemain, jadi `setVisible(false)` tanpa jeda sudah
+ * dibatalkan sebelum potret kedua diambil — kedua potret jadi identik dan SEMUA
+ * arah dilaporkan tertutup, termasuk yang jelas-jelas terlihat.
+ */
+async function senjataTerlihat() {
+  const cari = () => {
+    const s = window.__game.scene.getScene('Game');
+    return s.children.list.find(
+      (c) => c.type === 'Sprite' && c.texture?.key?.startsWith('weapon-')
+    );
+  };
+  await page.evaluate(() => window.__game.scene.pause('Game'));
+  await tidur(60);
+  const dengan = await page.screenshot({ encoding: 'base64' });
+  await page.evaluate(`(${cari.toString()})()?.setVisible(false)`);
+  await tidur(60);
+  const tanpa = await page.screenshot({ encoding: 'base64' });
+  await page.evaluate(`(${cari.toString()})()?.setVisible(true)`);
+  await page.evaluate(() => window.__game.scene.resume('Game'));
+  await tidur(60);
+  return dengan !== tanpa;
+}
+
 const gerak = (x, y, attack = false) =>
   page.evaluate(
     ([mx, my, a]) => {
@@ -111,9 +144,9 @@ for (const kelas of ['warrior', 'archer', 'mage']) {
   for (const [arah, mx, my] of ARAH) {
     await gerak(mx, my);
     await tidur(300);
-    rekam.arah[arah] = await bacaSenjata();
     await gerak(0, 0);
     await tidur(120);
+    rekam.arah[arah] = { ...(await bacaSenjata()), terlihat: await senjataTerlihat() };
   }
 
   // --- 4-5. Ayunan ---
@@ -166,8 +199,25 @@ for (const [kelas, r] of Object.entries(hasil.kelas)) {
   if (r.arah.up.depth >= r.arah.up.depthPemain) {
     masalah.push(`${kelas}: hadap atas, senjata tidak di belakang badan`);
   }
-  if (r.arah.down.depth <= r.arah.down.depthPemain) {
+  // Hadap bawah: pedang & tongkat di depan (gagangnya harus terlihat menyentuh
+  // tangan), busur di belakang (badan menutupi sisi dalamnya — itulah yang
+  // membuatnya terbaca menempel, bukan ditempel).
+  const busur = r.arah.down.key === 'weapon-bow';
+  const diDepan = r.arah.down.depth > r.arah.down.depthPemain;
+  if (busur && diDepan) {
+    masalah.push(`${kelas}: busur harus DI BELAKANG badan, bukan di depan`);
+  }
+  if (!busur && !diDepan) {
     masalah.push(`${kelas}: hadap bawah, senjata tidak di depan badan`);
+  }
+
+  // Inti keluhan "senjata mengambang": genggaman harus dekat siluet badan.
+  // Badan pemain kira-kira selebar +-7 px; genggaman di luar itu menggantung di
+  // udara. Arah samping paling rawan — di situlah dulu dipasang +6.
+  for (const [arah, sn] of Object.entries(r.arah)) {
+    if (Math.abs(sn.dx) > 7) {
+      masalah.push(`${kelas}/${arah}: genggaman ${sn.dx} px dari sumbu — di luar badan`);
+    }
   }
   if (r.ayunan.rentang < 15) {
     masalah.push(`${kelas}: ayunan terlalu kecil (${r.ayunan.rentang} derajat)`);
@@ -179,6 +229,13 @@ for (const [kelas, r] of Object.entries(hasil.kelas)) {
   }
   if (!r.ayunan.kembaliKeDiam) {
     masalah.push(`${kelas}: tidak kembali ke pose diam setelah menyerang`);
+  }
+  // Senjata yang seluruhnya tertutup badan sama saja dengan tidak ada. Ini
+  // terjadi pada hadap ATAS ketika sudutnya condong ke arah badan.
+  for (const [arah, sn] of Object.entries(r.arah)) {
+    if (!sn.terlihat) {
+      masalah.push(`${kelas}/${arah}: senjata tertutup badan sepenuhnya`);
+    }
   }
 }
 if (!hasil.senjataBerbeda) masalah.push('dua kelas memakai senjata yang sama');

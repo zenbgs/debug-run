@@ -14,55 +14,107 @@
 
 import type { Facing } from '../entities/Player';
 
-export type WeaponPose = {
-  /** Geser dari pusat pemain, dalam piksel logis. */
-  x: number;
-  y: number;
-  /** Senjata di belakang pemain saat ia membelakangi kamera. */
-  behind: boolean;
-  /** Sprite dicerminkan — dipakai arah kiri supaya pegangannya tetap di tangan. */
-  flip: boolean;
-};
-
-/** Gaya ayunan dan sudut diam per jenis senjata. */
+/** Gaya ayunan, genggaman, dan urutan gambar per jenis senjata. */
 export type WeaponKind = 'sword' | 'bow' | 'staff';
 
 const DEG = Math.PI / 180;
 
-/**
- * Pose diam per arah hadap: POSISI saja, tanpa sudut.
- *
- * Sudut diamnya milik SENJATA, bukan arah hadap — lihat `REST` di bawah. Versi
- * pertama menaruh rotasi di sini, dan hasilnya ketiga senjata dimiringkan sama
- * jauh: busur dan tongkat ikut terlentang 55 derajat seperti pedang, sehingga
- * pemain terlihat menyodorkan senjatanya alih-alih memegangnya.
- *
- * Angkanya diturunkan dari sprite pemain, bukan dikira-kira: karakter mengisi
- * kotak (8,6)-(24,31) di dalam frame 32x32, jadi tangannya kira-kira 6-7 px dari
- * sumbu tengah dan setinggi pinggang.
- */
-export const POSE: Record<Facing, WeaponPose> = {
-  down: { x: 7, y: 6, behind: false, flip: false },
-  // Membelakangi kamera: senjata DI BELAKANG badan, kalau tidak ia menutupi kepala.
-  up: { x: -7, y: 5, behind: true, flip: true },
-  right: { x: 6, y: 6, behind: false, flip: false },
-  left: { x: -6, y: 6, behind: false, flip: true },
+export type WeaponPose = {
+  /** Letak GENGGAMAN relatif pusat pemain, piksel logis. */
+  x: number;
+  y: number;
+  /** Sudut diam, radian. 0 = ujung menghadap atas. */
+  rotation: number;
+  /** Sprite dicerminkan. */
+  flip: boolean;
+};
+
+export type ClassAnchor = {
+  down: WeaponPose;
+  /** Dipakai untuk hadap KANAN; hadap kiri adalah cerminannya. */
+  side: WeaponPose;
+  up: WeaponPose;
 };
 
 /**
- * Sudut diam per jenis senjata, radian. 0 = tegak lurus ke atas.
+ * Titik genggam per kelas dan arah hadap — **diukur dari piksel spritesheet**,
+ * bukan diturunkan dari kotak pembatas.
  *
- * Sengaja kecil. Senjata yang dipegang santai hampir tegak; yang terlentang jauh
- * terbaca sebagai sedang diacungkan, dan itu membuat pose diam tampak seperti
- * pose menyerang yang macet.
+ * Versi pertama memakai satu tabel untuk semua kelas dengan angka hasil hitungan
+ * kasar (`x = ±6..7`, `y = 6`). Hasilnya senjata mengambang di udara di samping
+ * karakter, dan itulah keluhan yang dilaporkan. Penyebabnya baru ketahuan setelah
+ * piksel warna kulit di tiap frame benar-benar dicari:
+ *
+ * | sprite | hadap bawah | hadap samping |
+ * |---|---|---|
+ * | guy (Warrior) | tangan di (+6, +9) | tangan di (**-2**, +9) |
+ * | pirategirl (Archer) | (+4, +6) | (**-1**, +6) |
+ * | blondkid (Mage) | (+5, +9) | (**+2**, +9) |
+ *
+ * Yang paling meleset adalah arah SAMPING: tangan yang terlihat ada di dekat
+ * sumbu badan, bukan 6 px di luarnya. Selisih 6-8 px itulah celah yang terbaca
+ * sebagai senjata melayang.
+ *
+ * Arah KIRI diturunkan dengan mencerminkan `side`, jadi tidak ada entri kembar
+ * yang bisa lepas sinkron.
  */
-export const REST: Record<WeaponKind, number> = {
-  // Pedang sedikit condong keluar supaya bilahnya tidak menimpa kepala.
-  sword: 22 * DEG,
-  // Busur dipegang tegak — busur miring tidak terbaca sebagai busur.
-  bow: 4 * DEG,
-  staff: 8 * DEG,
+export const HAND: Record<string, ClassAnchor> = {
+  warrior: {
+    down: { x: 6, y: 9, rotation: 40 * DEG, flip: false },
+    side: { x: -2, y: 9, rotation: 65 * DEG, flip: false },
+    // Sudutnya NEGATIF, bukan sekadar x yang dicerminkan. Dengan +40 bilahnya
+    // condong ke arah badan dan pedangnya hilang sepenuhnya di balik punggung.
+    up: { x: -6, y: 9, rotation: -40 * DEG, flip: false },
+  },
+  archer: {
+    // Busur digeser sedikit ke luar dari tangan (+7 vs tangan di +4). Ia digambar
+    // DI BELAKANG badan, jadi yang menjadikannya terbaca sebagai "dipegang"
+    // adalah sisi dalam yang tertutup badan — kalau ditaruh tepat di tangan, yang
+    // tersisa di luar siluet hanya lengkungan setipis satu piksel.
+    down: { x: 7, y: 6, rotation: 0, flip: false },
+    side: { x: 5, y: 6, rotation: 20 * DEG, flip: false },
+    up: { x: -7, y: 6, rotation: 0, flip: true },
+  },
+  mage: {
+    down: { x: 5, y: 9, rotation: 20 * DEG, flip: false },
+    side: { x: 2, y: 9, rotation: 30 * DEG, flip: false },
+    up: { x: -6, y: 9, rotation: -20 * DEG, flip: false },
+  },
 };
+
+/** Pose untuk satu arah hadap, dengan arah kiri diturunkan dari `side`. */
+export function poseFor(classId: string, facing: Facing): WeaponPose {
+  const anchor = HAND[classId] ?? HAND.warrior;
+  if (facing === 'down') return anchor.down;
+  if (facing === 'up') return anchor.up;
+  if (facing === 'right') return anchor.side;
+  const s = anchor.side;
+  return { x: -s.x, y: s.y, rotation: -s.rotation, flip: !s.flip };
+}
+
+/**
+ * Digambar di belakang badan bahkan saat menghadap kamera.
+ *
+ * Ini bukan soal rapi-rapian — ini yang membuat senjata terbaca MENEMPEL.
+ * Busur digenggam di tengah, jadi ia selalu membentang melintasi badan; digambar
+ * di depan, ia terlihat seperti ditempelkan di atas karakternya. Di belakang,
+ * badan menutupi sisi dalamnya dan sisanya terbaca sebagai busur yang dipegang di
+ * samping — tumpang tindih itulah yang memberi kesan menyatu.
+ *
+ * Pedang dan tongkat digenggam di PANGKAL, jadi gagangnya jatuh tepat di tangan
+ * dan tidak melintasi badan. Keduanya justru lebih baik di depan: gagangnya
+ * terlihat bersentuhan dengan tangan.
+ */
+export const BEHIND: Record<WeaponKind, boolean> = {
+  sword: false,
+  bow: true,
+  staff: false,
+};
+
+/** Senjata juga selalu di belakang badan saat pemain membelakangi kamera. */
+export function behindFor(kind: WeaponKind, facing: Facing): boolean {
+  return facing === 'up' || BEHIND[kind];
+}
 
 /**
  * Letak genggaman sepanjang tinggi sprite: 0 = ujung atas, 1 = ujung bawah.
@@ -83,8 +135,8 @@ export const GRIP: Record<WeaponKind, number> = {
  * Ayunan: sudut tambahan (relatif pose diam) di tiap tahap.
  *
  * `angkat` dipakai selama ancang-ancang, `ayun` saat hitbox aktif. Nilainya
- * ditandatangani mengikuti arah hadap lewat `arah` supaya ayunan ke kiri tidak
- * terlihat seperti ayunan ke kanan yang diputar.
+ * ditandatangani mengikuti arah hadap supaya ayunan ke kiri tidak terlihat
+ * seperti ayunan ke kanan yang diputar.
  */
 export type SwingShape = {
   /** Sudut saat ancang-ancang, radian. Berlawanan arah ayunan. */
