@@ -47,15 +47,33 @@ console.log(JSON.stringify(await p.evaluate(async () => {
   out.cincinTebalAda = tebal.ring !== undefined;
   out.cincinBiasaAda = biasa.ring !== undefined;
 
-  // Kecepatan: ukur perpindahan nyata selama 400 ms.
+  // Kecepatan: ukur perpindahan NYATA, satu musuh pada satu waktu.
+  //
+  // Versi pertama mengukur tiga musuh yang berdiri berdampingan dan semuanya
+  // bergerak ke arah yang sama — mereka saling menabrak, dan hasilnya bergantung
+  // pada posisi acak. Terukur: elite "Gesit" kadang tampak LEBIH LAMBAT dari
+  // musuh biasa, yang mustahil. Itu flake alat ukur, bukan regresi.
   const target = new (window.Phaser.Math.Vector2)(600, 300);
-  const jarakTempuh = async (e) => {
+  const jarakTempuh = async (eliteId) => {
+    s.enemyGroup.getChildren().slice().forEach((e) => e.destroy());
+    s.invalidateAliveCache();
+    const e = s.createEnemy(E[0], 260, 300);
+    if (eliteId) e.applyElite(ELITES.find((x) => x.id === eliteId));
+    e.setDepth(8);
+    s.enemyGroup.add(e);
+    s.invalidateAliveCache();
+    // Rintangan arena diacak; matikan tabrakan supaya yang terukur murni kecepatan.
+    e.body.checkCollision.none = true;
+    await tidur(60);
     const x0 = e.x;
-    for (let i=0;i<24;i++) { e.tick(target, s.time.now, 1/60); await tidur(16); }
+    for (let i = 0; i < 30; i++) {
+      e.tick(target, s.time.now, 1 / 60);
+      await tidur(16);
+    }
     return Math.abs(e.x - x0);
   };
-  out.jarakBiasa = Math.round(await jarakTempuh(biasa));
-  out.jarakGesit = Math.round(await jarakTempuh(gesit));
+  out.jarakBiasa = Math.round(await jarakTempuh(null));
+  out.jarakGesit = Math.round(await jarakTempuh('gesit'));
 
   // --- Elite peledak melukai tetangga ---
   s.enemyGroup.getChildren().slice().forEach(e=>e.destroy());

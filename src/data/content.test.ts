@@ -211,6 +211,54 @@ describe('integritas kelas dan skill', () => {
     for (const s of SKILLS) expect(dipakai.has(s.id), `skill "${s.id}" yatim`).toBe(true);
   });
 
+  it('tidak ada dua skill yang memakai animasi sama', () => {
+    // Keluhan nyata saat memainkannya: "Warrior dan Mage skill-nya sama".
+    // Namanya memang beda, tapi Cleave dan Purge memakai sprite yang SAMA PERSIS
+    // (`slash-circular`) dengan bentuk dan radius nyaris sama — saat dimainkan
+    // keduanya tidak bisa dibedakan. Nama berbeda saja tidak cukup.
+    const fx = SKILLS.map((s) => (s.kind === 'hitbox' ? s.step.fxKey : undefined)).filter(
+      (k): k is string => k !== undefined
+    );
+    const kembar = fx.filter((k, i) => fx.indexOf(k) !== i);
+    expect(kembar, `animasi skill dipakai ulang: ${[...new Set(kembar)].join(', ')}`).toEqual([]);
+  });
+
+  it('skill hitbox tiap kelas terasa berbeda, bukan cuma beda nama', () => {
+    // "Terlalu mirip" = bentuk sama DAN radius mirip DAN dorongan mirip DAN
+    // damage mirip. Keempatnya harus bersamaan.
+    //
+    // Damage ikut dihitung karena versi pertama tes ini tanpa damage langsung
+    // menuduh Warcry dan Purge kembar hanya karena radiusnya sama — padahal
+    // yang satu 10 damage berstun 1,4 detik dan yang lain 34 damage tanpa stun.
+    // Itu dua alat yang sama sekali berbeda.
+    //
+    // Dengan aturan ini, pasangan Cleave/Purge yang LAMA tetap tertangkap:
+    // r 46/50, dorong 460/340, damage 30/25 — mirip di ketiganya.
+    const hitbox = SKILLS.filter(
+      (s): s is Extract<typeof s, { kind: 'hitbox' }> => s.kind === 'hitbox'
+    );
+    for (let i = 0; i < hitbox.length; i++) {
+      for (let j = i + 1; j < hitbox.length; j++) {
+        const a = hitbox[i].step;
+        const b = hitbox[j].step;
+        if (a.shape.type !== 'circle' || b.shape.type !== 'circle') continue;
+
+        const radiusMirip = Math.abs(a.shape.radius - b.shape.radius) < 12;
+        const dorongMirip =
+          Math.abs((a.knockback ?? 0) - (b.knockback ?? 0)) <
+          Math.max(a.knockback ?? 0, b.knockback ?? 0) * 0.4;
+        const damageMirip =
+          Math.abs(a.damage - b.damage) < Math.max(a.damage, b.damage) * 0.4;
+
+        expect(
+          radiusMirip && dorongMirip && damageMirip,
+          `${hitbox[i].id} dan ${hitbox[j].id} terlalu mirip ` +
+            `(r ${a.shape.radius}/${b.shape.radius}, dorong ${a.knockback}/${b.knockback}, dmg ${a.damage}/${b.damage})`
+        ).toBe(false);
+      }
+    }
+  });
+
   it('kelas jarak jauh wajib punya konfigurasi proyektil', () => {
     for (const c of PLAYER_CLASSES) {
       if (c.attackStyle !== 'ranged') continue;

@@ -112,6 +112,14 @@ export const SHEETS = {
     frameHeight: 47,
     frames: 8,
   },
+  /** Ledakan sihir radial — skill Purge milik Mage. */
+  FX_ENERGY_SMACK: {
+    key: 'fx-energy-smack',
+    path: 'assets/fx/fx-energy-smack.png',
+    frameWidth: 128,
+    frameHeight: 96,
+    frames: 8,
+  },
   FX_ARCANE_CRESCENT: {
     key: 'fx-arcane-crescent',
     path: 'assets/fx/fx-arcane-crescent.png',

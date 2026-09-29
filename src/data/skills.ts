@@ -121,21 +121,31 @@ export const SKILLS: readonly Skill[] = [
 
   // ---------------- MAGE ----------------
   {
+    // ⚠️ Dulu skill ini memakai `FX_SLASH_CIRCULAR` — sprite yang SAMA PERSIS
+    // dengan Cleave milik Warrior, dengan bentuk yang sama (lingkaran di
+    // sekeliling diri) dan radius nyaris sama (46 vs 50). Dua kelas berbeda
+    // dengan skill yang tidak bisa dibedakan sama sekali saat dimainkan.
+    //
+    // Sekarang bukan hanya animasinya yang berbeda, tapi juga RASANYA:
+    // Cleave melempar musuh sejauh 460 — ia alat membuka ruang. Purge nyaris
+    // tidak mendorong (90) tapi memukul lebih keras dan lebih luas — ia alat
+    // membersihkan kerumunan, dan musuhnya tetap di tempat untuk dipukul lagi.
     id: 'purge',
     name: 'Purge',
-    blurb: 'Ledakan sihir melingkar di sekeliling diri',
+    blurb: 'Ledakan sihir meluas, nyaris tanpa dorongan',
     cooldownMs: 6000,
     kind: 'hitbox',
     step: {
       name: 'purge',
-      damage: 25,
-      shape: { type: 'circle', radius: 50 },
-      fxKey: SHEETS.FX_SLASH_CIRCULAR.key,
+      damage: 34,
+      shape: { type: 'circle', radius: 62 },
+      fxKey: SHEETS.FX_ENERGY_SMACK.key,
       fxOffset: 0,
-      fxScale: 1.5,
+      fxScale: 1.1,
       recoveryMs: 420,
-      windupMs: 70,
-      knockback: 340,
+      // Ancang-ancang lebih panjang dari Cleave: sihir dirapal, baja diayun.
+      windupMs: 130,
+      knockback: 90,
       hitstopMs: 130,
       shakeIntensity: 0.006,
     },

@@ -160,6 +160,20 @@ tombol `K` (atau klik kanan), slot 2 di `L`/`Q`.
 | Archer | **Volley** - 9 panah menyebar, 11 dmg/panah, cd 6 s | **Pin Shot** - 24 dmg, **menembus** + **stun 1 s**, cd 9 s |
 | Mage | **Purge** - 25 dmg, r=50, cd 6 s | **Shock** - 18 dmg, garis menembus + **stun 0,8 s**, cd 9 s |
 
+⚠️ **Tidak boleh ada dua skill dengan animasi yang sama.** Cleave milik Warrior
+dan Purge milik Mage dulu memakai sprite yang SAMA PERSIS (`slash-circular`)
+dengan bentuk sama dan radius nyaris sama (46 vs 50) — saat dimainkan keduanya
+tidak bisa dibedakan, dan nama berbeda saja tidak menolong. Purge kini memakai
+`energy-smack` (ledakan sihir radial) dan dibedakan juga secara mekanik: Cleave
+melempar musuh sejauh 460 untuk membuka ruang, Purge nyaris tidak mendorong (90)
+tapi memukul lebih keras dan lebih luas.
+
+Dikunci dua tes: tidak ada `fxKey` yang dipakai ulang, dan tidak ada dua skill
+lingkaran yang mirip di radius, dorongan, DAN damage sekaligus. Ketiganya harus
+bersamaan — versi pertama tes itu tanpa damage langsung menuduh Warcry dan Purge
+kembar hanya karena radiusnya sama, padahal yang satu 10 damage berstun 1,4 detik
+dan yang lain 34 damage tanpa stun.
+
 Skill punya dua jenis eksekusi: `hitbox` memakai jalur `CombatSystem.resolveAttack`
 yang sama dengan combo, sedangkan `volley` menembakkan panah lewat jalur proyektil.
 

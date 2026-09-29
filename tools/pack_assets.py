@@ -39,6 +39,10 @@ JOBS = [
     ("fx-hit", "fx", os.path.join(FX, "Hit", "Sprites", "*.png")),
     ("fx-electro-shock", "fx", os.path.join(GROTTO, "electro-shock", "*.png")),
     ("fx-energy-field", "fx", os.path.join(GROTTO, "energy-field", "*.png")),
+    # Ledakan sihir radial untuk skill Purge milik Mage. Sebelumnya Purge memakai
+    # `slash-circular` yang sama persis dengan Cleave milik Warrior — dua kelas
+    # berbeda dengan animasi skill yang identik.
+    ("fx-energy-smack", "fx", os.path.join(GROTTO, "energy-smack", "*.png")),
     ("player-fireball", "sprites", os.path.join(GROTTO, "fire-ball", "*.png")),
     ("fx-arcane-crescent", "fx", os.path.join(FX, "Warped shooting fx", "crossed", "sprites", "*.png")),
     ("fx-arcane-blast", "fx", os.path.join(FX, "Warped shooting fx", "charged", "sprites", "*.png")),
